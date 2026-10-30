@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<title>卡通戰爭 · 原型 v1.4.5</title>
+<title>卡通戰爭 · 原型 v1.4.6</title>
 <style>
 
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -751,6 +751,10 @@
   const SEPARATION_FACTOR = 0.85;
   const FLASH_TIME = 0.12;
   const KNOCKBACK = 10;
+  /* === v1.4.6 procedural attack anim === */
+  const ATK_MELEE_DUR = 0.25;
+  const ATK_RANGED_DUR = 0.18;
+  const ATK_BOOM_DUR = 0.15;
 
   const CASTLE_UP_COSTS = [0, 120, 200, 320, 480]; // index = current LV (cost to upgrade from)
   const UNIT_UP_COSTS = [0, 80, 140, 220, 320]; // index = current LV
@@ -1475,6 +1479,52 @@
     }
   }
 
+
+  function atkDur(kind) {
+    if (kind === 'boom') return ATK_BOOM_DUR;
+    if (kind === 'ranged') return ATK_RANGED_DUR;
+    return ATK_MELEE_DUR;
+  }
+
+  function startAtkAnim(u, kind) {
+    u.atkPlaying = true;
+    u.atkT = 0;
+    u.atkKind = kind;
+  }
+
+  /** Draw offsets in facing-local space (+X = forward after scale(dir,1)). */
+  function getAtkDraw(u) {
+    if (!u.atkPlaying) return { ox: 0, oy: 0, sx: 1, sy: 1, rot: 0 };
+    const t = u.atkT;
+    const kind = u.atkKind;
+    if (kind === 'boom') {
+      const mid = ATK_BOOM_DUR * 0.5;
+      let s;
+      if (t < mid) s = 1 + 0.15 * (t / Math.max(1e-6, mid));
+      else s = 1.15 - 0.15 * ((t - mid) / Math.max(1e-6, mid));
+      return { ox: 0, oy: 0, sx: s, sy: s, rot: 0 };
+    }
+    if (kind === 'ranged') {
+      const p = Math.min(1, t / ATK_RANGED_DUR);
+      const wave = Math.sin(p * Math.PI);
+      return { ox: wave * 10, oy: 0, sx: 1, sy: 1, rot: wave * (12 * Math.PI / 180) };
+    }
+    // melee: windup → strike → recover (~250ms)
+    const wEnd = 0.07, sEnd = 0.16, rEnd = ATK_MELEE_DUR;
+    if (t < wEnd) {
+      const p = t / wEnd;
+      return { ox: -6 * p, oy: 0, sx: 1, sy: 1, rot: 0 };
+    }
+    if (t < sEnd) {
+      const p = (t - wEnd) / (sEnd - wEnd);
+      return { ox: -6 + 19 * p, oy: 0, sx: 1 + 0.1 * p, sy: 1, rot: 0 };
+    }
+    {
+      const p = Math.min(1, (t - sEnd) / Math.max(1e-6, rEnd - sEnd));
+      return { ox: 13 * (1 - p), oy: 0, sx: 1.1 - 0.1 * p, sy: 1, rot: 0 };
+    }
+  }
+
   function applyHitFeedback(target, fromX) {
     target.flash = FLASH_TIME;
     const dir = target.x >= fromX ? 1 : -1;
@@ -1562,6 +1612,9 @@
       atkCd: 0,
       alive: true,
       flash: 0,
+      atkPlaying: false,
+      atkT: 0,
+      atkKind: null,
       skin: def.skin,
       spriteKey: def.spriteKey
     });
@@ -1817,17 +1870,34 @@
       u.atkCd = Math.max(0, u.atkCd - dt);
       if (u.flash > 0) u.flash = Math.max(0, u.flash - dt);
 
+      // Advance procedural ATK anim (per-unit; cheap)
+      if (u.atkPlaying) {
+        u.atkT += dt;
+        if (u.atkKind === 'boom' && u.atkT >= ATK_BOOM_DUR) {
+          u.atkPlaying = false;
+          u.atkT = 0;
+          explodeBomber(u);
+          continue;
+        }
+        if (u.atkKind !== 'boom' && u.atkT >= atkDur(u.atkKind)) {
+          u.atkPlaying = false;
+          u.atkT = 0;
+          u.atkKind = null;
+        }
+      }
+
       const info = findTarget(u);
       const inRange = info.target && info.dist <= def.range;
 
       if (inRange) {
-        if (u.atkCd <= 0) {
-          if (u.type === 'bomber') {
-            explodeBomber(u);
-            continue;
+        if (u.type === 'bomber') {
+          if (!(u.atkPlaying && u.atkKind === 'boom')) {
+            startAtkAnim(u, 'boom');
           }
+        } else if (u.atkCd <= 0) {
           u.atkCd = atkCooldown(u.type);
           if (u.type === 'archer' || u.type === 'mage') {
+            startAtkAnim(u, 'ranged');
             projectiles.push({
               x: u.x + dir * 8,
               y: u.y - def.height * 0.55,
@@ -1838,10 +1908,11 @@
               kind: u.type === 'mage' ? 'mage' : 'arrow'
             });
           } else {
+            startAtkAnim(u, 'melee');
             damageUnit(info.target, dmg, u.x, u.side);
           }
         }
-      } else {
+      } else if (!(u.atkPlaying && u.atkKind === 'boom')) {
         u.x += dir * def.speed * dt;
       }
 
@@ -1850,11 +1921,16 @@
       const enemyCastleX = castleX(u.side === 'p' ? 'e' : 'p');
       if (Math.abs(u.x - enemyCastleX) < 40) {
         if (u.type === 'bomber') {
-          explodeBomber(u);
+          if (!(u.atkPlaying && u.atkKind === 'boom')) {
+            startAtkAnim(u, 'boom');
+          }
+          u.x = enemyCastleX - dir * 38;
           continue;
         }
         if (u.atkCd <= 0) {
           u.atkCd = 0.8;
+          if (u.type === 'archer' || u.type === 'mage') startAtkAnim(u, 'ranged');
+          else startAtkAnim(u, 'melee');
           if (u.side === 'p') eCastle = Math.max(0, eCastle - dmg);
           else pCastle = Math.max(0, pCastle - dmg);
           SFX.play('hit');
@@ -1985,12 +2061,16 @@
     if (u.flash > 0) col = '#ffffff';
 
     const img = UNIT_IMGS[u.type];
+    const ad = getAtkDraw(u);
     if (img && img.complete && img.naturalWidth > 0) {
       const drawH = Math.max(h * 1.45, 40);
       const drawW = drawH;
       ctx.save();
       ctx.translate(x, y);
       ctx.scale(dir, 1);
+      ctx.translate(ad.ox, ad.oy);
+      if (ad.rot) ctx.rotate(ad.rot);
+      ctx.scale(ad.sx, ad.sy);
       ctx.fillStyle = 'rgba(0,0,0,0.18)';
       ctx.beginPath();
       ctx.ellipse(0, 2, style.radius * 0.9, 5, 0, 0, Math.PI * 2);
@@ -2011,6 +2091,9 @@
     ctx.save();
     ctx.translate(x, y);
     ctx.scale(dir, 1);
+    ctx.translate(ad.ox, ad.oy);
+    if (ad.rot) ctx.rotate(ad.rot);
+    ctx.scale(ad.sx, ad.sy);
 
     ctx.fillStyle = 'rgba(0,0,0,0.18)';
     ctx.beginPath();
