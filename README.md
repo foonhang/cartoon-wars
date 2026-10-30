@@ -1,5 +1,5 @@
 # Cartoon Wars
 
-Playable prototype (v1.3.1).
+Playable prototype (v1.4).
 
 Play: https://foonhang.github.io/cartoon-wars/
