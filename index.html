@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<title>卡通戰爭 · 原型 v1.4.2</title>
+<title>卡通戰爭 · 原型 v1.4.3</title>
 <style>
 
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -309,6 +309,14 @@
     margin: 2px 0 0;
     max-width: 100%;
   }
+  #endNextUnlock {
+    font-size: clamp(10px, 2vw, 12px);
+    opacity: 0.9;
+    line-height: 1.35;
+    margin: 4px 0 0;
+    max-width: 100%;
+    color: #ffe082;
+  }
   #endCard #btnAgain {
     position: absolute;
     left: 17.8%;
@@ -588,6 +596,7 @@
           <div id="endRecord">連勝 <span id="endStreak">0</span> · 總勝 <span id="endWins">0</span></div>
           <div id="endMeta"></div>
           <p id="endTip">城攻清線 · 升城／升兵 · 編隊四格 · 勝場解鎖</p>
+          <p id="endNextUnlock"></p>
         </div>
         <button type="button" id="btnAgain" aria-label="再開一局">改編隊再開</button>
       </div>
@@ -865,6 +874,27 @@
     return ALL_UNIT_TYPES.filter(isUnlocked);
   }
 
+  function unlockNeedWins(type) {
+    return Math.max(1, (UNLOCK_WINS[type] || 0) - getTotalWins());
+  }
+  function unlockToastMsg(type) {
+    const def = UNIT_DEFS[type];
+    const name = def ? def.name : type;
+    return '再勝 ' + unlockNeedWins(type) + ' 場解鎖「' + name + '」';
+  }
+  function nextUnlockLine(wins) {
+    if (wins == null) wins = getTotalWins();
+    for (let i = 0; i < ALL_UNIT_TYPES.length; i++) {
+      const t = ALL_UNIT_TYPES[i];
+      const need = UNLOCK_WINS[t] || 0;
+      if (need > wins) {
+        const def = UNIT_DEFS[t];
+        return '下一解鎖：' + (def ? def.name : t) + '（再勝 ' + (need - wins) + '）';
+      }
+    }
+    return '下一解鎖：已全部解鎖';
+  }
+
   function normalizeLoadout(arr) {
     const seen = {};
     const out = [];
@@ -1080,8 +1110,7 @@
       btn.appendChild(badge);
       btn.addEventListener('click', function () {
         if (!isUnlocked(type)) {
-          const need = (UNLOCK_WINS[type] || 0) - getTotalWins();
-          showToast('再勝 ' + Math.max(1, need) + ' 場解鎖' + def.name);
+          showToast(unlockToastMsg(type));
           return;
         }
         trySpawn(type);
@@ -1282,8 +1311,7 @@
         }
         b.addEventListener('click', function () {
           if (locked) {
-            const need = (UNLOCK_WINS[t] || 0) - getTotalWins();
-            showToast('再勝 ' + Math.max(1, need) + ' 場解鎖');
+            showToast(unlockToastMsg(t));
             return;
           }
           const idx = draftLoadout.indexOf(t);
@@ -1855,6 +1883,8 @@
     if (ew) ew.textContent = String(wins);
     if (tip) tip.textContent = tipText;
     if (em) em.textContent = '★ +' + gain + '（現有 ' + meta + '）· 兵營可升級';
+    const enu = document.getElementById('endNextUnlock');
+    if (enu) enu.textContent = nextUnlockLine(wins);
     syncRecordHud();
     updateButtons();
   }
