@@ -66,6 +66,9 @@ html, body {
   width: 72px; height: 72px; min-width: 72px;
   border-radius: 50%; background: #9a9a9a;
   border: 3px solid #555;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 #dlg-text { margin: 0; font-size: 22px; font-weight: 700; min-height: 1.2em; }
 #dlg-actions { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
@@ -138,3 +141,46 @@ html, body {
   #dlg-text { font-size: 18px; }
   #hp-bar { width: 80px; }
 }
+
+#creator-screen {
+  overflow-y: auto;
+  justify-content: flex-start;
+  padding-top: 24px;
+  gap: 10px;
+  z-index: 35;
+}
+#creator-screen h2 { margin: 0 0 4px; font-size: 28px; }
+#creator-preview {
+  width: 160px; height: 160px;
+  border-radius: 20px;
+  background: #fff8e7;
+  border: 3px solid #333;
+  image-rendering: auto;
+}
+.creator-row {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  align-items: center; justify-content: center;
+  width: min(640px, 96%);
+}
+.creator-row label { font-weight: 800; font-size: 18px; }
+#creator-name {
+  min-height: 48px; min-width: 180px;
+  font-size: 20px; font-weight: 700;
+  border: 3px solid #333; border-radius: 12px;
+  padding: 8px 12px; text-align: center;
+}
+.creator-row.chips .chip, .creator-presets .chip {
+  min-height: 48px; min-width: 72px;
+  padding: 8px 14px;
+  border: 3px solid #333; border-radius: 14px;
+  background: #fff8e7; color: #222;
+  font-size: 16px; font-weight: 800; cursor: pointer;
+}
+.creator-row.chips .chip.active, .creator-presets .chip.active {
+  background: #ffd54f; box-shadow: 0 0 0 3px #fff inset;
+}
+.creator-presets {
+  display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+  width: min(640px, 96%);
+}
+.creator-actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
