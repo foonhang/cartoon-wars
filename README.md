@@ -2,7 +2,7 @@
 
 Browser prototype for kids (~7.5). English UI. Camp → Forest → Creek (Fox Cub ending).
 
-Play: https://foonhang.github.io/cat-warriors/
+Play: https://foonhang.github.io/cartoon-wars/
 
 ## Run locally
 
