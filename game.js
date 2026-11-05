@@ -1,4 +1,4 @@
-/* Cat Clan RPG light v0.1.0 — numbers from config.json only */
+/* Cat Clan RPG light v0.3.0 — numbers from config.json only; pose frames + portraits */
 (() => {
   "use strict";
 
@@ -78,6 +78,14 @@
     targetArrow: null, // world {x,y}
     moveTarget: null,
     saveLoaded: false,
+    dialogueSpeaker: null,
+    anim: {
+      walkT: 0,
+      walkFlip: 0,
+      playerAtkUntil: 0,
+      companionAtkUntil: 0,
+      enemyAtkUntil: 0,
+    },
   };
 
   // zone layouts (world coords, canvas logical 960x540)
@@ -168,7 +176,7 @@
             if (!state.flags.pebbleJoined) {
               state.flags.pebbleJoined = true;
               state.companion = { x: state.player.x - 40, y: state.player.y + 20, r: 22 };
-              queueDialogue(["pebble_1", "pebble_2"], null);
+              showDialogue(["pebble_1", "pebble_2"], null, "pebble");
             }
           }
           updateQuestHud();
@@ -397,17 +405,46 @@
   }
 
   // ---------- dialogue ----------
-  function showDialogue(keys, cb) {
+  function showDialogue(keys, cb, speakerKind) {
     state.dialogueQueue = keys.slice();
     state.dialogueCb = cb || null;
+    state.dialogueSpeaker = speakerKind || null;
     setMode("dialogue");
     nextDialogueLine();
+  }
+
+  function resolveSpeaker(key) {
+    if (/^camp_elder|^forest_elder|^forest_done|^gate_|^need_quest|^win_1$|^tut_/.test(key)) return "oldGrey";
+    if (/^mama_/.test(key)) return "mamaCat";
+    if (/^moss_/.test(key)) return "littleMoss";
+    if (/^fox_/.test(key)) return "foxCub";
+    if (/^pebble_/.test(key)) return "pebble";
+    if (/^ending_/.test(key)) return "player";
+    return state.dialogueSpeaker || "player";
+  }
+
+  function setDialoguePortrait(kind) {
+    const av = $("dlg-avatar");
+    const portKey = kind + "Portrait";
+    const img = artImages[portKey];
+    const col = CFG.placeholderColors[kind] || CFG.placeholderColors.oldGrey || "#9a9a9a";
+    if (img && img.complete && img.naturalWidth) {
+      av.style.backgroundColor = col;
+      av.style.backgroundImage = "url(" + CFG.art[portKey] + ")";
+      av.style.backgroundSize = "cover";
+      av.style.backgroundPosition = "center";
+      av.style.backgroundRepeat = "no-repeat";
+    } else {
+      av.style.backgroundImage = "none";
+      av.style.background = col;
+    }
   }
 
   function nextDialogueLine() {
     if (!state.dialogueQueue.length) {
       const cb = state.dialogueCb;
       state.dialogueCb = null;
+      state.dialogueSpeaker = null;
       setMode("explore");
       if (cb) cb();
       saveGame();
@@ -416,9 +453,7 @@
     const key = state.dialogueQueue.shift();
     const text = STR.dialogue[key] || STR.ui[key] || key;
     $("dlg-text").textContent = text;
-    // avatar color by zone/npc heuristic
-    const col = CFG.placeholderColors.oldGrey;
-    $("dlg-avatar").style.background = col;
+    setDialoguePortrait(resolveSpeaker(key));
     speak(text);
   }
 
@@ -487,6 +522,13 @@
     }
   }
 
+  function flashAtk(who) {
+    const until = performance.now() + 260;
+    if (who === "player") state.anim.playerAtkUntil = until;
+    else if (who === "companion") state.anim.companionAtkUntil = until;
+    else if (who === "enemy") state.anim.enemyAtkUntil = until;
+  }
+
   function dealToEnemy(dmg) {
     const b = state.battle;
     b.enemyHp = Math.max(0, b.enemyHp - dmg);
@@ -495,6 +537,7 @@
   function enemyHitOnce() {
     const b = state.battle;
     if (!b || state.mode !== "battle") return false;
+    flashAtk("enemy");
     applyDamageToPlayer(b.enemyAtk);
     updateHud();
     if (state.player.hp <= 0) {
@@ -532,6 +575,7 @@
     if (state.flags.pebbleJoined) {
       b.companionTimer++;
       if (b.companionTimer % CFG.COMPANION_ASSIST_EVERY === 0) {
+        flashAtk("companion");
         dealToEnemy(CFG.COMPANION_ATK);
         showToast(`Pebble! −${CFG.COMPANION_ATK}`);
         if (b.enemyHp <= 0) {
@@ -552,6 +596,7 @@
   function playerClaw() {
     const b = state.battle;
     if (!b || !b.playerActing || b.pounceWait > 0) return;
+    flashAtk("player");
     dealToEnemy(state.player.atk);
     afterPlayerAction();
   }
@@ -561,6 +606,7 @@
     if (!b || !b.playerActing) return;
     if (state.player.level < CFG.SKILL_UNLOCK.Pounce) return;
     if (b.pounceWait > 0) return;
+    flashAtk("player");
     dealToEnemy(state.player.atk * CFG.POUNCE_MULT);
     b.pounceWait = CFG.POUNCE_WAIT_TURNS;
     afterPlayerAction();
@@ -684,7 +730,7 @@
     for (const n of state.npcs) {
       if (dist(p, n) < n.r + 20) {
         const lines = n.lines();
-        showDialogue(lines, n.onDone);
+        showDialogue(lines, n.onDone, n.kind === "gate" ? "oldGrey" : n.kind);
         return;
       }
     }
@@ -703,10 +749,31 @@
   canvas.addEventListener("pointerdown", onTap);
 
   // ---------- draw ----------
-  function drawPlaceholder(kind, x, y, r) {
-    const imgPath = CFG.art[kind];
-    const img = artImages[kind];
-    if (img && img.complete && img.naturalWidth) {
+  function artLoaded(key) {
+    const img = artImages[key];
+    return !!(img && img.complete && img.naturalWidth);
+  }
+
+  /** pose: "idle" | "walkA" | "walkB" | "atk" — falls back to single-frame kind */
+  function resolveArtKey(kind, pose) {
+    const suffix = { idle: "Idle", walkA: "WalkA", walkB: "WalkB", atk: "Atk" }[pose] || "Idle";
+    const keyed = kind + suffix;
+    if (CFG.art[keyed] && artLoaded(keyed)) return keyed;
+    if (CFG.art[kind] && artLoaded(kind)) return kind;
+    return null;
+  }
+
+  function pickPose(moving, attacking) {
+    if (attacking) return "atk";
+    if (moving) return state.anim.walkFlip ? "walkB" : "walkA";
+    return "idle";
+  }
+
+  function drawPlaceholder(kind, x, y, r, pose) {
+    const usePose = pose || "idle";
+    const key = resolveArtKey(kind, usePose);
+    if (key) {
+      const img = artImages[key];
       ctx.drawImage(img, x - r, y - r, r * 2, r * 2);
       return;
     }
@@ -771,7 +838,7 @@
         ctx.textAlign = "center";
         ctx.fillText("→", n.x, n.y);
       } else {
-        drawPlaceholder(kind, n.x, n.y, n.r);
+        drawPlaceholder(kind, n.x, n.y, n.r, "idle");
       }
       // dynamic bang: gates light up when zone quest is done
       let bang = n.hasBang;
@@ -787,33 +854,42 @@
       }
     }
 
-    // enemies
+    // enemies (stand → idle frame)
+    const now = performance.now();
     for (const e of state.enemies) {
       if (!e.alive) continue;
       const kind = e.type === "FoxCub" ? "foxCub" : e.type.toLowerCase();
-      drawPlaceholder(kind, e.x, e.y, e.r);
+      drawPlaceholder(kind, e.x, e.y, e.r, "idle");
     }
 
     // companion
     if (state.companion && state.flags.pebbleJoined) {
-      drawPlaceholder("companion", state.companion.x, state.companion.y, state.companion.r);
+      const c = state.companion;
+      const cMoving = Math.hypot(c.x - (state.player.x - 40), c.y - (state.player.y + 20)) > 4;
+      const cAtk = now < state.anim.companionAtkUntil;
+      drawPlaceholder("companion", c.x, c.y, c.r, pickPose(cMoving, cAtk));
     }
 
     // player
-    drawPlaceholder("player", state.player.x, state.player.y, state.player.r);
+    {
+      const pMoving = !!state.moveTarget && state.mode === "explore";
+      const pAtk = now < state.anim.playerAtkUntil;
+      drawPlaceholder("player", state.player.x, state.player.y, state.player.r, pickPose(pMoving, pAtk));
+    }
 
     // battle overlay vignette
     if (state.mode === "battle" && state.battle) {
       ctx.fillStyle = "rgba(0,0,0,0.25)";
       ctx.fillRect(0, 0, W, H);
       const e = state.battle.enemy;
-      drawPlaceholder(
-        e.type === "FoxCub" ? "foxCub" : e.type.toLowerCase(),
-        W * 0.7, H * 0.4, 50
-      );
-      drawPlaceholder("player", W * 0.28, H * 0.45, 44);
+      const eKind = e.type === "FoxCub" ? "foxCub" : e.type.toLowerCase();
+      const eAtk = now < state.anim.enemyAtkUntil;
+      const pAtkB = now < state.anim.playerAtkUntil;
+      const cAtkB = now < state.anim.companionAtkUntil;
+      drawPlaceholder(eKind, W * 0.7, H * 0.4, 50, pickPose(false, eAtk));
+      drawPlaceholder("player", W * 0.28, H * 0.45, 44, pickPose(false, pAtkB));
       if (state.flags.pebbleJoined) {
-        drawPlaceholder("companion", W * 0.18, H * 0.55, 28);
+        drawPlaceholder("companion", W * 0.18, H * 0.55, 28, pickPose(false, cAtkB));
       }
       // HP bars
       drawBar(W * 0.7 - 50, H * 0.4 - 70, 100, 12, state.battle.enemyHp / state.battle.enemyMaxHp, "#e53935");
@@ -844,6 +920,12 @@
 
   // ---------- update ----------
   function update(dt) {
+    // shared walk frame timer (~150ms)
+    state.anim.walkT += dt;
+    if (state.anim.walkT >= 0.15) {
+      state.anim.walkT = 0;
+      state.anim.walkFlip = state.anim.walkFlip ? 0 : 1;
+    }
     if (state.mode !== "explore") return;
     const p = state.player;
     if (state.moveTarget) {
@@ -892,7 +974,7 @@
       showDialogue(["camp_elder_1", "camp_elder_2", "camp_elder_3"], () => {
         state.flags.tutTalked = true;
         updateQuestHud();
-      });
+      }, "oldGrey");
     };
     $("btn-continue").onclick = () => {
       if (loadGame()) setMode("explore");

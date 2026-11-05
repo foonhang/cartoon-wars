@@ -1,4 +1,4 @@
-# Cat Clan（《貓族》）RPG light — v0.2.0
+# Cat Clan（《貓族》）RPG light — v0.3.0
 
 Browser prototype for kids (~7.5). English UI. Camp → Forest → Creek (Fox Cub ending).
 
@@ -59,8 +59,10 @@ Numbers come from Drive `GAME_CODE_PROMPT_v0.1` / Poe v148. Do not invent new co
 
 Web Speech API, `en-US`, rate `0.85`. 🔊 replay + mute on the HUD.
 
-## Art status (v0.2.0)
+## Art status (v0.3.0)
 
-P0 and P1 comic PNGs are in `art/`: player, companion, old_grey, pebble, mama_cat, little_moss, little_moss_alt_worried, bug, mouse, fox_cub, bg_camp, bg_forest, bg_creek.
+Walk and attack frames plus dialogue portraits are in `art/` (`*_idle`, `*_walk_a`, `*_walk_b`, `*_atk`, `*_portrait`). Missing pose frames fall back to the single PNG.
+
+P0 and P1 comic PNGs remain: player, companion, old_grey, pebble, mama_cat, little_moss, little_moss_alt_worried, bug, mouse, fox_cub, bg_camp, bg_forest, bg_creek.
 
 `config.json` also names optional button skins (`art/btn_claw.png`, `art/btn_pounce.png`, `art/btn_groom.png`, `art/btn_continue.png`, `art/btn_retry.png`). Those files are not in this drop; the battle and screen buttons keep their HTML labels until the PNGs are added.
