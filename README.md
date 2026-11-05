@@ -1,6 +1,6 @@
 # Cat Clan (貓族) — web prototype
 
-**Version:** v0.5.0 (character creator + Slice1 lv1–5)
+**Version:** v0.5.1 (character creator + Slice1 lv1–5)
 
 Kids ~7.5 story RPG light. Camp→Forest; Creek teaser after FoxCub midboss.
 

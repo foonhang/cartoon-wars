@@ -1,5 +1,5 @@
 {
-  "version": "v0.5.0",
+  "version": "v0.5.1",
   "ZONES": [
     "Camp",
     "Forest",
@@ -386,9 +386,7 @@
     ],
     "markings": [
       "none",
-      "stripes",
-      "spots",
-      "blaze"
+      "stripes"
     ],
     "accessories": [
       "none",
@@ -426,14 +424,14 @@
         "name": "Shade",
         "fur": "black",
         "eyes": "green",
-        "markings": "spots",
+        "markings": "stripes",
         "accessory": "bandana"
       },
       "CreamDream": {
         "name": "Cream",
         "fur": "cream",
         "eyes": "amber",
-        "markings": "blaze",
+        "markings": "none",
         "accessory": "bell"
       }
     }

@@ -1,4 +1,4 @@
-/* Cat Clan RPG light v0.5.0 — creator + Slice1 lv1–5; numbers from config.json; cutscenes §E */
+/* Cat Clan RPG light v0.5.1 — creator tint fix + grayscale P0; Slice1 lv1–5; numbers from config.json; cutscenes §E */
 (() => {
   "use strict";
 
@@ -450,11 +450,13 @@
     const furHex = (CFG.CREATOR && CFG.CREATOR.furColors && CFG.CREATOR.furColors[c.fur]) || "#E8A040";
     const eyeHex = (CFG.CREATOR && CFG.CREATOR.eyeColors && CFG.CREATOR.eyeColors[c.eyes]) || "#FFB84D";
     const size = r * 2;
-    if (key) {
-      const img = artImages[key];
+    const img = key ? artImages[key] : null;
+    const artReady = !!(img && img.complete && img.naturalWidth);
+    if (artReady) {
       const tinted = tintImageToCanvas(img, furHex, size, size);
       targetCtx.drawImage(tinted, x - r, y - r, size, size);
     } else {
+      // always show fur color even if art missing / still loading
       targetCtx.beginPath();
       targetCtx.fillStyle = furHex;
       targetCtx.arc(x, y, r, 0, Math.PI * 2);
@@ -483,7 +485,7 @@
     drawTintedPlayer(cctx, canvas.width / 2, canvas.height / 2 + 8, 56, draft, "idle");
   }
 
-  function buildChipRow(el, options, selected, onPick, labelFn) {
+  function buildChipRow(el, options, selected, onPick, labelFn, styleFn) {
     if (!el) return;
     el.innerHTML = "";
     options.forEach((opt) => {
@@ -491,6 +493,7 @@
       btn.type = "button";
       btn.className = "chip" + (opt === selected ? " active" : "");
       btn.textContent = labelFn ? labelFn(opt) : opt;
+      if (styleFn) styleFn(btn, opt);
       btn.onclick = () => onPick(opt);
       el.appendChild(btn);
     });
@@ -506,10 +509,23 @@
     $("btn-creator-back").textContent = (STR.ui && STR.ui.creator_back) || "Back";
     buildChipRow($("creator-fur"), C.furs || [], draft.fur, (v) => {
       draft.fur = v; draft.preset = null; refreshCreatorPreview(); syncCreatorForm();
-    }, (v) => (STR.ui && STR.ui["fur_" + v]) || v);
+    }, (v) => (STR.ui && STR.ui["fur_" + v]) || v, (btn, v) => {
+      const hex = (C.furColors && C.furColors[v]) || null;
+      if (hex) {
+        btn.style.background = hex;
+        btn.style.color = (v === "black" || v === "grey") ? "#fff" : "#222";
+        btn.style.borderColor = hex;
+      }
+    });
     buildChipRow($("creator-eyes"), C.eyes || [], draft.eyes, (v) => {
       draft.eyes = v; draft.preset = null; refreshCreatorPreview(); syncCreatorForm();
-    }, (v) => (STR.ui && STR.ui["eyes_" + v]) || v);
+    }, (v) => (STR.ui && STR.ui["eyes_" + v]) || v, (btn, v) => {
+      const hex = (C.eyeColors && C.eyeColors[v]) || null;
+      if (hex) {
+        btn.style.color = hex;
+        btn.style.borderColor = hex;
+      }
+    });
     buildChipRow($("creator-markings"), C.markings || [], draft.markings, (v) => {
       draft.markings = v; draft.preset = null; refreshCreatorPreview(); syncCreatorForm();
     }, (v) => (STR.ui && STR.ui["mark_" + v]) || v);
@@ -1274,6 +1290,23 @@
       artImages[k] = img;
       img.onload = () => {
         if (k.startsWith("btn")) applyBtnArt();
+        if (state.mode === "creator") refreshCreatorPreview();
+      };
+    });
+    // creator overlays (not in CFG.art) — refresh preview when they land
+    const overlays = [];
+    const marks = (CFG.CREATOR && CFG.CREATOR.markings) || [];
+    const accs = (CFG.CREATOR && CFG.CREATOR.accessories) || [];
+    marks.forEach((m) => { if (m && m !== "none") overlays.push("art/markings_" + m + ".png"); });
+    accs.forEach((a) => { if (a && a !== "none") overlays.push("art/accessory_" + a + ".png"); });
+    overlays.forEach((path) => {
+      const cacheKey = "_ov_" + path;
+      if (artImages[cacheKey]) return;
+      const img = new Image();
+      img.src = path;
+      artImages[cacheKey] = img;
+      img.onload = () => {
+        if (state.mode === "creator") refreshCreatorPreview();
       };
     });
   }
