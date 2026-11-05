@@ -1,10 +1,14 @@
 import fs from 'fs';
 import assert from 'assert';
-import { createRequire } from 'module';
 
 const CFG = JSON.parse(fs.readFileSync('./config.json','utf8'));
 const STR = JSON.parse(fs.readFileSync('./strings.en.json','utf8'));
 const game = fs.readFileSync('./game.js','utf8');
+const html = fs.readFileSync('./index.html','utf8');
+
+assert.strictEqual(CFG.version, 'v0.3.0');
+assert.strictEqual(STR.ui.version, 'v0.3.0');
+assert.ok(html.includes('v0.3.0'), 'index.html version');
 
 assert.deepStrictEqual(CFG.EXP_THRESHOLDS, [0,30,80,150]);
 assert.strictEqual(CFG.LEVEL_MAX, 4);
@@ -59,21 +63,41 @@ assert.strictEqual(levelFromExp(150), 4);
 const bad = [];
 for (const section of Object.values(STR)) {
   for (const [k,v] of Object.entries(section)) {
+    if (typeof v !== 'string') continue;
     const words = v.replace(/\.\.\./g,' ').trim().split(/\s+/).filter(Boolean);
     if (words.length > 6) bad.push([k,v,words.length]);
   }
 }
 assert.deepStrictEqual(bad, [], 'lines >6 words: '+JSON.stringify(bad));
 
-// game.js pulls from CFG (sanity: key names present)
 assert.strictEqual(CFG.LOCALSTORAGE_KEY, 'mao_zu_v01');
-for (const needle of ['PLAYER_HP_BASE','POUNCE_MULT','GROOM_HEAL_PCT','COMPANION_ATK','ASSIST_ON_FAIL_STREAK','TTS_RATE','LOCALSTORAGE_KEY','speechSynthesis']) {
+for (const needle of ['PLAYER_HP_BASE','POUNCE_MULT','GROOM_HEAL_PCT','COMPANION_ATK','ASSIST_ON_FAIL_STREAK','TTS_RATE','LOCALSTORAGE_KEY','speechSynthesis','resolveArtKey','pickPose','setDialoguePortrait','flashAtk']) {
   assert.ok(game.includes(needle), 'missing '+needle);
 }
 
-// button min height in CSS
+// required art keys (Batch A)
+const requiredKeys = [
+  'playerIdle','playerWalkA','playerWalkB','playerAtk','playerPortrait',
+  'companionIdle','companionWalkA','companionWalkB','companionAtk','companionPortrait',
+  'oldGreyIdle','oldGreyWalkA','oldGreyWalkB','oldGreyPortrait',
+  'pebbleIdle','pebbleWalkA','pebbleWalkB','pebblePortrait',
+  'mamaCatIdle','mamaCatWalkA','mamaCatWalkB','mamaCatPortrait',
+  'littleMossIdle','littleMossWalkA','littleMossWalkB','littleMossPortrait',
+  'bugIdle','bugWalkA','bugWalkB','bugAtk',
+  'mouseIdle','mouseWalkA','mouseWalkB','mouseAtk',
+  'foxCubIdle','foxCubWalkA','foxCubWalkB','foxCubAtk','foxCubPortrait',
+  // fallback singles
+  'player','companion','oldGrey','pebble','mamaCat','littleMoss','bug','mouse','foxCub',
+];
+for (const k of requiredKeys) {
+  assert.ok(CFG.art[k], 'missing art key '+k);
+  assert.ok(fs.existsSync(CFG.art[k]), 'missing file '+CFG.art[k]);
+}
+
 const css = fs.readFileSync('./style.css','utf8');
 assert.ok(css.includes('min-height: 88px') || css.includes('min-height: 72px'));
 assert.ok(css.includes('min-height: 72px'));
+assert.ok(css.includes('#dlg-avatar'));
+assert.ok(css.includes('background-size: cover'));
 
 console.log('SMOKE OK');
