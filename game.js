@@ -1,4 +1,4 @@
-/* Cat Clan RPG light v0.1.0 — numbers from config.json only */
+/* Cat Clan RPG light v0.4.0-s1 — Slice1 lv1–5; numbers from config.json; cutscenes §E */
 (() => {
   "use strict";
 
@@ -9,7 +9,6 @@
   let STR = null;
   let artImages = {};
 
-  // ---------- helpers ----------
   const $ = (id) => document.getElementById(id);
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 
@@ -28,7 +27,6 @@
     return Math.min(lv, CFG.LEVEL_MAX);
   }
 
-  // ---------- TTS ----------
   let muted = false;
   let lastSpoken = "";
   function speak(text) {
@@ -42,31 +40,26 @@
   }
   function replay() { speak(lastSpoken); }
 
-  // ---------- state ----------
   const state = {
     mode: "title", // title | explore | dialogue | battle | faint | ending | pause
     zone: "Camp",
+    storyLevel: 1,
+    levelCleared: false,
+    cutscenePending: null, // "pre" | "post" | null
     player: {
       x: 160, y: 300, r: 28,
       hp: 40, maxHp: 40, atk: 6,
       level: 1, exp: 0,
       facing: 1,
     },
-    companion: null, // {x,y} when unlocked
+    companion: null,
     flags: {
-      tutTalked: false,
-      tutFought: false,
-      campDone: false,
-      forestQuestAccepted: false,
-      miceCaught: 0,
-      forestDone: false,
-      pebbleJoined: false,
-      creekIntro: false,
-      mossFound: false,
-      foxDefeated: false,
-      ending: false,
+      companionJoined: false,
       sawLvlPounce: false,
       sawLvlGroom: false,
+      sawLvlScratchWave: false,
+      slice1Done: false,
+      ending: false,
     },
     faintStreak: 0,
     npcs: [],
@@ -74,13 +67,21 @@
     props: [],
     dialogueQueue: [],
     dialogueCb: null,
+    dialogueSpeaker: null,
     battle: null,
-    targetArrow: null, // world {x,y}
+    targetArrow: null,
     moveTarget: null,
     saveLoaded: false,
+    anim: {
+      walkT: 0,
+      walkFlip: 0,
+      playerAtkUntil: 0,
+      companionAtkUntil: 0,
+      enemyAtkUntil: 0,
+    },
+    _defeated: {},
   };
 
-  // zone layouts (world coords, canvas logical 960x540)
   const W = 960, H = 540;
 
   function zoneBgColor(zone) {
@@ -89,174 +90,136 @@
     ];
   }
 
-  function spawnZone(zone) {
-    state.zone = zone;
+  function encounterSpec(storyLv) {
+    return CFG.LEVEL_ENCOUNTERS[String(storyLv)] || CFG.LEVEL_ENCOUNTERS["1"];
+  }
+
+  function ensureCompanion() {
+    const need = state.storyLevel >= (CFG.COMPANION_UNLOCK_STORY_LEVEL || 3)
+      || state.player.level >= (CFG.COMPANION_UNLOCK_STORY_LEVEL || 3);
+    if (need && !state.flags.companionJoined) {
+      state.flags.companionJoined = true;
+      state.companion = { x: state.player.x - 40, y: state.player.y + 20, r: 22 };
+      showToast(STR.ui.companion_join);
+      speak(STR.ui.companion_join);
+    }
+    if (state.flags.companionJoined && !state.companion) {
+      state.companion = { x: state.player.x - 40, y: state.player.y + 20, r: 22 };
+    }
+  }
+
+  function spawnStoryLevel(storyLv, skipPre) {
+    const spec = encounterSpec(storyLv);
+    state.storyLevel = storyLv;
+    state.zone = spec.zone;
+    state.levelCleared = false;
     state.npcs = [];
     state.enemies = [];
     state.props = [];
     state.moveTarget = null;
+    state._defeated = {};
 
     const entrance = { x: 80, y: H / 2 };
     state.player.x = entrance.x;
     state.player.y = entrance.y;
 
-    if (zone === "Camp") {
-      state.npcs.push({
-        id: "oldGrey", name: "Old Grey", kind: "oldGrey",
-        x: 420, y: 260, r: 30, hasBang: true,
-        lines: () => {
-          if (!state.flags.tutTalked) {
-            return ["camp_elder_1", "camp_elder_2", "camp_elder_3", "camp_elder_4"];
-          }
-          if (!state.flags.tutFought) return ["camp_elder_4"];
-          if (!state.flags.campDone) {
-            state.flags.campDone = true;
-            return ["win_1", "gate_forest"];
-          }
-          return ["gate_forest"];
-        },
-        onDone: () => {
-          state.flags.tutTalked = true;
-          updateQuestHud();
-        },
-      });
-      // gate to forest
-      state.npcs.push({
-        id: "gateForest", name: "Gate", kind: "gate",
-        x: 900, y: H / 2, r: 36, hasBang: state.flags.campDone,
-        lines: () => {
-          if (!state.flags.campDone) return ["need_quest"];
-          return ["gate_forest"];
-        },
-        onDone: () => {
-          if (state.flags.campDone) loadZone("Forest");
-        },
-      });
-      for (let i = 0; i < 3; i++) {
-        if (state._defeated && state._defeated[`Camp_Bug_${i}`]) continue;
-        state.enemies.push({
-          id: `Camp_Bug_${i}`, type: "Bug",
-          x: 520 + i * 90, y: 340 + (i % 2) * 40,
-          r: 22, alive: true,
+    // mentor / scout NPCs by zone (NPC only — not combat buddy)
+    if (spec.zone === "Camp") {
+      if (storyLv === 1) {
+        state.npcs.push({
+          id: "mama", name: "Mama Cat", kind: "mamaCat",
+          x: 300, y: 240, r: 30, hasBang: false,
+          lines: () => ["lv1_pre_0"],
+          onDone: () => {},
         });
-      }
-    }
-
-    if (zone === "Forest") {
-      state.npcs.push({
-        id: "forestElder", name: "Old Grey", kind: "oldGrey",
-        x: 280, y: 220, r: 30, hasBang: true,
-        lines: () => {
-          if (!state.flags.forestQuestAccepted) {
-            return ["forest_elder_1", "forest_elder_2"];
-          }
-          if (state.flags.miceCaught < 3) {
-            return ["forest_elder_2"];
-          }
-          if (!state.flags.forestDone) {
-            return ["forest_done"];
-          }
-          return ["gate_creek"];
-        },
-        onDone: () => {
-          if (!state.flags.forestQuestAccepted) {
-            state.flags.forestQuestAccepted = true;
-          }
-          if (state.flags.miceCaught >= 3 && !state.flags.forestDone) {
-            state.flags.forestDone = true;
-            // Pebble joins
-            if (!state.flags.pebbleJoined) {
-              state.flags.pebbleJoined = true;
-              state.companion = { x: state.player.x - 40, y: state.player.y + 20, r: 22 };
-              queueDialogue(["pebble_1", "pebble_2"], null);
-            }
-          }
-          updateQuestHud();
-        },
-      });
-      state.npcs.push({
-        id: "gateCreek", name: "Gate", kind: "gate",
-        x: 900, y: H / 2, r: 36, hasBang: state.flags.forestDone,
-        lines: () => {
-          if (!state.flags.forestDone) return ["need_quest"];
-          return ["gate_creek"];
-        },
-        onDone: () => {
-          if (state.flags.forestDone) loadZone("Creek");
-        },
-      });
-      for (let i = 0; i < 5; i++) {
-        if (state._defeated && state._defeated[`Forest_Mouse_${i}`]) continue;
-        state.enemies.push({
-          id: `Forest_Mouse_${i}`, type: "Mouse",
-          x: 450 + (i % 3) * 110, y: 280 + Math.floor(i / 3) * 100,
-          r: 24, alive: true,
-        });
-      }
-    }
-
-    if (zone === "Creek") {
-      state.npcs.push({
-        id: "mama", name: "Mama Cat", kind: "mamaCat",
-        x: 200, y: 240, r: 30, hasBang: !state.flags.creekIntro || !state.flags.mossFound,
-        lines: () => {
-          if (!state.flags.creekIntro) return ["mama_1", "mama_2"];
-          if (!state.flags.mossFound) return ["mama_2"];
-          return ["moss_2"];
-        },
-        onDone: () => {
-          state.flags.creekIntro = true;
-          updateQuestHud();
-        },
-      });
-      if (!state.flags.mossFound) {
+      } else {
         state.npcs.push({
           id: "moss", name: "Little Moss", kind: "littleMoss",
-          x: 720, y: 380, r: 26, hasBang: true,
-          lines: () => ["moss_1", "moss_2"],
-          onDone: () => {
-            state.flags.mossFound = true;
-            // remove moss from map after rescue (she follows conceptually)
-            state.npcs = state.npcs.filter((n) => n.id !== "moss");
-            updateQuestHud();
-            // nudge toward fox if still alive
-            showToast(STR.dialogue.fox_1 || "Grrr!");
-          },
+          x: 300, y: 240, r: 28, hasBang: false,
+          lines: () => ["lv2_pre_0"],
+          onDone: () => {},
         });
       }
-      for (let i = 0; i < 2; i++) {
-        if (state._defeated && state._defeated[`Creek_Mouse_${i}`]) continue;
-        state.enemies.push({
-          id: `Creek_Mouse_${i}`, type: "Mouse",
-          x: 480 + i * 100, y: 300, r: 24, alive: true,
-        });
-      }
-      if (!state.flags.foxDefeated && !(state._defeated && state._defeated["Creek_FoxCub_0"])) {
-        state.enemies.push({
-          id: "Creek_FoxCub_0", type: "FoxCub",
-          x: 820, y: 280, r: 34, alive: true,
+    } else if (spec.zone === "Forest") {
+      state.npcs.push({
+        id: "oldGrey", name: "Old Grey", kind: "oldGrey",
+        x: 260, y: 220, r: 30, hasBang: false,
+        lines: () => ["lv3_pre_1"],
+        onDone: () => {},
+      });
+      if (storyLv >= 4) {
+        state.npcs.push({
+          id: "pebble", name: "Pebble", kind: "pebble",
+          x: 360, y: 300, r: 26, hasBang: false,
+          lines: () => ["lv4_pre_1"],
+          onDone: () => {},
         });
       }
     }
 
-    if (state.flags.pebbleJoined && !state.companion) {
-      state.companion = { x: state.player.x - 40, y: state.player.y + 20, r: 22 };
+    let idx = 0;
+    for (const pack of (spec.enemies || [])) {
+      for (let i = 0; i < pack.count; i++) {
+        const id = `L${storyLv}_${pack.type}_${idx}`;
+        state.enemies.push({
+          id,
+          type: pack.type,
+          x: 480 + (idx % 3) * 110,
+          y: 260 + Math.floor(idx / 3) * 100,
+          r: pack.type === "FoxCub" ? 34 : pack.type === "Mouse" ? 24 : 22,
+          alive: true,
+        });
+        idx++;
+      }
     }
+
+    ensureCompanion();
     updateQuestHud();
     updateHud();
     saveGame();
+
+    if (!skipPre) {
+      playCutscene("pre", () => {
+        setMode("explore");
+        updateQuestHud();
+      });
+    }
+  }
+
+  function playCutscene(kind, cb) {
+    const block = (CFG.CUTSCENES[String(state.storyLevel)] || {})[kind] || [];
+    if (!block.length) {
+      if (cb) cb();
+      return;
+    }
+    state.cutscenePending = kind;
+    const keys = block.map((line) => line.key);
+    // show with per-line speakers via dialogue meta
+    state._cutsceneLines = block.slice();
+    state.dialogueQueue = keys.slice();
+    state.dialogueCb = () => {
+      state.cutscenePending = null;
+      state._cutsceneLines = null;
+      if (cb) cb();
+    };
+    state.dialogueSpeaker = block[0].speaker;
+    setMode("dialogue");
+    nextDialogueLine();
   }
 
   function loadZone(zone) {
-    spawnZone(zone);
+    // Slice1: zone changes only via story levels
+    spawnStoryLevel(state.storyLevel, true);
   }
 
   // ---------- save ----------
   function saveGame() {
-    const key = CFG.LOCALSTORAGE_KEY;
+    const key = CFG.LOCALSTORAGE_KEY || "mao_zu_v04";
     const data = {
       version: CFG.version,
       zone: state.zone,
+      storyLevel: state.storyLevel,
+      levelCleared: state.levelCleared,
       player: {
         exp: state.player.exp,
         level: state.player.level,
@@ -266,29 +229,93 @@
       faintStreak: state.faintStreak,
       defeated: state._defeated || {},
       muted,
+      migratedFrom: state._migratedFrom || null,
     };
     try { localStorage.setItem(key, JSON.stringify(data)); } catch (_) {}
   }
 
-  function loadGame() {
-    const key = CFG.LOCALSTORAGE_KEY;
+  function migrateLegacy() {
+    const legacy = CFG.LOCALSTORAGE_LEGACY_KEY;
+    if (!legacy) return null;
     let raw;
-    try { raw = localStorage.getItem(key); } catch (_) { return false; }
-    if (!raw) return false;
+    try { raw = localStorage.getItem(legacy); } catch (_) { return null; }
+    if (!raw) return null;
     try {
       const data = JSON.parse(raw);
-      state.player.exp = data.player.exp;
-      state.player.level = levelFromExp(data.player.exp);
+      // Cap into Slice1: map old zone progress into storyLevel
+      let story = 1;
+      if (data.flags && data.flags.foxDefeated) story = 5;
+      else if (data.flags && data.flags.forestDone) story = 4;
+      else if (data.zone === "Forest") story = 3;
+      else if (data.flags && data.flags.campDone) story = 2;
+      return {
+        version: CFG.version,
+        zone: data.zone || "Camp",
+        storyLevel: Math.min(story, CFG.STORY_LEVEL_MAX || 5),
+        levelCleared: false,
+        player: data.player || { exp: 0, level: 1, hp: 40 },
+        flags: {
+          companionJoined: !!(data.flags && (data.flags.pebbleJoined || data.flags.companionJoined)),
+          sawLvlPounce: !!(data.flags && data.flags.sawLvlPounce),
+          sawLvlGroom: !!(data.flags && data.flags.sawLvlGroom),
+          sawLvlScratchWave: false,
+          slice1Done: false,
+          ending: false,
+        },
+        faintStreak: data.faintStreak || 0,
+        defeated: {},
+        muted: !!data.muted,
+        migratedFrom: "v0.3",
+      };
+    } catch (_) { return null; }
+  }
+
+  function loadGame() {
+    const key = CFG.LOCALSTORAGE_KEY || "mao_zu_v04";
+    let raw;
+    try { raw = localStorage.getItem(key); } catch (_) { raw = null; }
+    let data = null;
+    if (raw) {
+      try { data = JSON.parse(raw); } catch (_) { data = null; }
+    }
+    if (!data) {
+      data = migrateLegacy();
+      if (data) {
+        state._migratedFrom = "v0.3";
+        try { localStorage.setItem(key, JSON.stringify({ ...data, version: CFG.version })); } catch (_) {}
+      }
+    }
+    if (!data) return false;
+    try {
+      state.player.exp = data.player.exp || 0;
+      state.player.level = levelFromExp(state.player.exp);
       applyPlayerStats();
-      state.player.hp = Math.min(data.player.hp, state.player.maxHp);
-      state.flags = { ...state.flags, ...data.flags };
+      state.player.hp = Math.min(data.player.hp || state.player.maxHp, state.player.maxHp);
+      state.flags = { ...state.flags, ...(data.flags || {}) };
       state.faintStreak = data.faintStreak || 0;
       state._defeated = data.defeated || {};
       muted = !!data.muted;
+      state.storyLevel = data.storyLevel || 1;
+      state.levelCleared = !!data.levelCleared;
+      state._migratedFrom = data.migratedFrom || null;
       updateMuteBtn();
-      spawnZone(data.zone || "Camp");
+      spawnStoryLevel(state.storyLevel, true);
+      if (state.flags.slice1Done) {
+        // stay on last level explore
+      }
       return true;
     } catch (_) { return false; }
+  }
+
+  function defaultFlags() {
+    return {
+      companionJoined: false,
+      sawLvlPounce: false,
+      sawLvlGroom: false,
+      sawLvlScratchWave: false,
+      slice1Done: false,
+      ending: false,
+    };
   }
 
   function newGame() {
@@ -296,18 +323,14 @@
     state.player.level = 1;
     applyPlayerStats();
     state.player.hp = state.player.maxHp;
-    state.flags = {
-      tutTalked: false, tutFought: false, campDone: false,
-      forestQuestAccepted: false, miceCaught: 0, forestDone: false,
-      pebbleJoined: false, creekIntro: false, mossFound: false,
-      foxDefeated: false, ending: false,
-      sawLvlPounce: false, sawLvlGroom: false,
-    };
+    state.flags = defaultFlags();
     state.faintStreak = 0;
     state._defeated = {};
     state.companion = null;
-    spawnZone("Camp");
-    saveGame();
+    state.storyLevel = 1;
+    state.levelCleared = false;
+    state._migratedFrom = null;
+    spawnStoryLevel(1, false);
   }
 
   function applyPlayerStats() {
@@ -331,45 +354,23 @@
   function updateQuestHud() {
     const q = $("quest-text");
     const ico = $("quest-icon");
-    if (state.zone === "Camp") {
-      ico.textContent = "🐛";
-      if (!state.flags.tutTalked) q.textContent = STR.quest.camp;
-      else if (!state.flags.tutFought) q.textContent = "Catch a bug";
-      else if (!state.flags.campDone) q.textContent = "Talk to Old Grey";
-      else q.textContent = "Go to Forest";
-    } else if (state.zone === "Forest") {
-      ico.textContent = "🐭";
-      if (!state.flags.forestQuestAccepted) q.textContent = STR.quest.forest;
-      else if (state.flags.miceCaught < 3) q.textContent = `🐭 ${state.flags.miceCaught}/3`;
-      else if (!state.flags.forestDone) q.textContent = "Talk to elder";
-      else q.textContent = "Go to Creek";
+    const lv = state.storyLevel;
+    const icons = { 1: "🐛", 2: "🐭", 3: "🌲", 4: "🤝", 5: "🦊" };
+    ico.textContent = icons[lv] || "🐱";
+    if (state.flags.slice1Done) {
+      q.textContent = STR.quest.done;
+    } else if (state.levelCleared) {
+      q.textContent = STR.ui.win;
     } else {
-      ico.textContent = "🐱";
-      if (!state.flags.creekIntro) q.textContent = STR.quest.creek;
-      else if (!state.flags.mossFound) q.textContent = "Find Little Moss";
-      else if (!state.flags.foxDefeated) q.textContent = "Beat Fox Cub";
-      else q.textContent = "Done!";
+      q.textContent = STR.quest["lv" + lv] || ("Level " + lv);
     }
     updateArrowTarget();
   }
 
   function updateArrowTarget() {
     let t = null;
-    if (state.zone === "Camp") {
-      if (!state.flags.tutTalked) t = state.npcs.find((n) => n.id === "oldGrey");
-      else if (!state.flags.tutFought) t = state.enemies.find((e) => e.alive);
-      else if (!state.flags.campDone) t = state.npcs.find((n) => n.id === "oldGrey");
-      else t = state.npcs.find((n) => n.id === "gateForest");
-    } else if (state.zone === "Forest") {
-      if (!state.flags.forestQuestAccepted) t = state.npcs.find((n) => n.id === "forestElder");
-      else if (state.flags.miceCaught < 3) t = state.enemies.find((e) => e.alive);
-      else if (!state.flags.forestDone) t = state.npcs.find((n) => n.id === "forestElder");
-      else t = state.npcs.find((n) => n.id === "gateCreek");
-    } else {
-      if (!state.flags.creekIntro) t = state.npcs.find((n) => n.id === "mama");
-      else if (!state.flags.mossFound) t = state.npcs.find((n) => n.id === "moss");
-      else if (!state.flags.foxDefeated) t = state.enemies.find((e) => e.type === "FoxCub" && e.alive);
-      else t = null;
+    if (!state.levelCleared) {
+      t = state.enemies.find((e) => e.alive) || null;
     }
     state.targetArrow = t ? { x: t.x, y: t.y - 50 } : null;
   }
@@ -397,17 +398,51 @@
   }
 
   // ---------- dialogue ----------
-  function showDialogue(keys, cb) {
+  function showDialogue(keys, cb, speakerKind) {
     state.dialogueQueue = keys.slice();
     state.dialogueCb = cb || null;
+    state.dialogueSpeaker = speakerKind || null;
+    state._cutsceneLines = null;
     setMode("dialogue");
     nextDialogueLine();
+  }
+
+  function resolveSpeaker(key) {
+    if (state._cutsceneLines) {
+      const line = state._cutsceneLines.find((l) => l.key === key);
+      if (line) return line.speaker;
+    }
+    if (/^mama_|^lv1_pre|^lv1_post/.test(key)) return "mamaCat";
+    if (/^lv2_/.test(key)) return "littleMoss";
+    if (/^lv3_/.test(key)) return "oldGrey";
+    if (/pebble|lv4_pre_1|lv4_pre_3|lv4_post_0|lv5_pre_3|lv5_post_3|creek_teaser/.test(key)) return "pebble";
+    if (/fox|lv5_post_0/.test(key)) return "foxCub";
+    if (/oldGrey|lv3_|lv4_pre_0|lv4_post_1|lv5_pre_0|lv5_pre_2|lv5_post_2/.test(key)) return "oldGrey";
+    return state.dialogueSpeaker || "player";
+  }
+
+  function setDialoguePortrait(kind) {
+    const av = $("dlg-avatar");
+    const portKey = kind + "Portrait";
+    const img = artImages[portKey];
+    const col = CFG.placeholderColors[kind] || CFG.placeholderColors.oldGrey || "#9a9a9a";
+    if (img && img.complete && img.naturalWidth) {
+      av.style.backgroundColor = col;
+      av.style.backgroundImage = "url(" + CFG.art[portKey] + ")";
+      av.style.backgroundSize = "cover";
+      av.style.backgroundPosition = "center";
+      av.style.backgroundRepeat = "no-repeat";
+    } else {
+      av.style.backgroundImage = "none";
+      av.style.background = col;
+    }
   }
 
   function nextDialogueLine() {
     if (!state.dialogueQueue.length) {
       const cb = state.dialogueCb;
       state.dialogueCb = null;
+      state.dialogueSpeaker = null;
       setMode("explore");
       if (cb) cb();
       saveGame();
@@ -416,9 +451,13 @@
     const key = state.dialogueQueue.shift();
     const text = STR.dialogue[key] || STR.ui[key] || key;
     $("dlg-text").textContent = text;
-    // avatar color by zone/npc heuristic
-    const col = CFG.placeholderColors.oldGrey;
-    $("dlg-avatar").style.background = col;
+    // speaker from cutscene queue head matching
+    let speaker = resolveSpeaker(key);
+    if (state._cutsceneLines) {
+      const hit = state._cutsceneLines.find((l) => l.key === key);
+      if (hit) speaker = hit.speaker;
+    }
+    setDialoguePortrait(speaker);
     speak(text);
   }
 
@@ -426,7 +465,6 @@
   function startBattle(enemy) {
     const edef = CFG.ENEMIES[enemy.type];
     let hp = edef.hp;
-    // assist on fail: reduce enemy HP by 20% after 2 faint streak
     if (state.faintStreak >= CFG.ASSIST_ON_FAIL_STREAK) {
       hp = Math.floor(hp * (1 - CFG.ASSIST_ON_FAIL_ENEMY_HP_PCT));
     }
@@ -435,13 +473,13 @@
       enemyHp: hp,
       enemyMaxHp: hp,
       enemyAtk: edef.atk,
-      turn: 0, // player turns counted
-      pounceWait: 0, // turns left to skip
+      turn: 0,
+      pounceWait: 0,
       groomUses: CFG.GROOM_USES_PER_BATTLE,
-      telegraph: "bite", // bite only for v0.1
+      telegraph: "bite",
       companionTimer: 0,
       playerActing: true,
-      firstHint: enemy.type === "Bug" && !state.flags.tutFought,
+      firstHint: enemy.type === "Bug" && state.storyLevel === 1 && state.enemies.filter((e) => !e.alive).length === 0,
     };
     setMode("battle");
     updateBattleUi();
@@ -456,20 +494,25 @@
 
   function updateBattleUi() {
     const b = state.battle;
+    if (!b) return;
     const lv = state.player.level;
     const pounceLv = CFG.SKILL_UNLOCK.Pounce;
     const groomLv = CFG.SKILL_UNLOCK.Groom;
+    const waveLv = CFG.SKILL_UNLOCK.ScratchWave;
     const btnP = $("btn-pounce");
     const btnG = $("btn-groom");
+    const btnW = $("btn-scratch-wave");
     btnP.classList.toggle("locked", lv < pounceLv);
     btnG.classList.toggle("locked", lv < groomLv);
+    btnW.classList.toggle("locked", lv < waveLv);
     btnP.disabled = lv < pounceLv || b.pounceWait > 0 || !b.playerActing;
     btnG.disabled = lv < groomLv || b.groomUses <= 0 || !b.playerActing;
+    btnW.disabled = lv < waveLv || b.pounceWait > 0 || !b.playerActing;
     $("btn-claw").disabled = !b.playerActing || b.pounceWait > 0;
     $("battle-telegraph").textContent = "🦷";
     let status = `${b.enemy.type}  ${b.enemyHp}/${b.enemyMaxHp}`;
     if (b.pounceWait > 0) status += `  (wait ${b.pounceWait})`;
-    if (state.flags.pebbleJoined) status += "  · Pebble";
+    if (state.flags.companionJoined) status += "  · Buddy";
     if (b.groomUses < CFG.GROOM_USES_PER_BATTLE && lv >= groomLv) {
       status += `  Groom ${b.groomUses}`;
     }
@@ -477,7 +520,6 @@
     updateHud();
   }
 
-  /** Clamp: no instant kill on player — if hp>1, leave at least 1 */
   function applyDamageToPlayer(dmg) {
     const p = state.player;
     if (p.hp > 1 && dmg >= p.hp) {
@@ -485,6 +527,13 @@
     } else {
       p.hp = Math.max(0, p.hp - dmg);
     }
+  }
+
+  function flashAtk(who) {
+    const until = performance.now() + 260;
+    if (who === "player") state.anim.playerAtkUntil = until;
+    else if (who === "companion") state.anim.companionAtkUntil = until;
+    else if (who === "enemy") state.anim.enemyAtkUntil = until;
   }
 
   function dealToEnemy(dmg) {
@@ -495,11 +544,12 @@
   function enemyHitOnce() {
     const b = state.battle;
     if (!b || state.mode !== "battle") return false;
+    flashAtk("enemy");
     applyDamageToPlayer(b.enemyAtk);
     updateHud();
     if (state.player.hp <= 0) {
       onFaint();
-      return true; // fainted
+      return true;
     }
     return false;
   }
@@ -513,7 +563,6 @@
       updateBattleUi();
       return;
     }
-    // consume one skipped player turn
     b.pounceWait--;
     updateBattleUi();
     setTimeout(() => {
@@ -528,12 +577,12 @@
       onBattleWin();
       return;
     }
-    // companion assist every N player turns
-    if (state.flags.pebbleJoined) {
+    if (state.flags.companionJoined) {
       b.companionTimer++;
       if (b.companionTimer % CFG.COMPANION_ASSIST_EVERY === 0) {
+        flashAtk("companion");
         dealToEnemy(CFG.COMPANION_ATK);
-        showToast(`Pebble! −${CFG.COMPANION_ATK}`);
+        showToast(`Buddy! −${CFG.COMPANION_ATK}`);
         if (b.enemyHp <= 0) {
           onBattleWin();
           return;
@@ -542,7 +591,6 @@
     }
     b.playerActing = false;
     updateBattleUi();
-    // enemy responds to this action once, then process pounce skips if any
     setTimeout(() => {
       if (enemyHitOnce()) return;
       runPounceSkips();
@@ -552,6 +600,7 @@
   function playerClaw() {
     const b = state.battle;
     if (!b || !b.playerActing || b.pounceWait > 0) return;
+    flashAtk("player");
     dealToEnemy(state.player.atk);
     afterPlayerAction();
   }
@@ -561,6 +610,7 @@
     if (!b || !b.playerActing) return;
     if (state.player.level < CFG.SKILL_UNLOCK.Pounce) return;
     if (b.pounceWait > 0) return;
+    flashAtk("player");
     dealToEnemy(state.player.atk * CFG.POUNCE_MULT);
     b.pounceWait = CFG.POUNCE_WAIT_TURNS;
     afterPlayerAction();
@@ -578,6 +628,17 @@
     afterPlayerAction();
   }
 
+  function playerScratchWave() {
+    const b = state.battle;
+    if (!b || !b.playerActing || b.pounceWait > 0) return;
+    if (state.player.level < CFG.SKILL_UNLOCK.ScratchWave) return;
+    flashAtk("player");
+    const dmg = Math.floor(state.player.atk * (CFG.SCRATCH_WAVE_MULT || 1.2));
+    dealToEnemy(dmg);
+    showToast(`Wave! −${dmg}`);
+    afterPlayerAction();
+  }
+
   function gainExp(amount) {
     const before = state.player.level;
     state.player.exp += amount;
@@ -585,7 +646,7 @@
     state.player.level = after;
     applyPlayerStats();
     if (after > before) {
-      state.player.hp = state.player.maxHp; // full heal on level up (kid-friendly)
+      state.player.hp = state.player.maxHp;
       showToast(STR.ui.lvlup);
       speak(STR.ui.lvlup);
       if (after >= CFG.SKILL_UNLOCK.Pounce && !state.flags.sawLvlPounce) {
@@ -602,8 +663,50 @@
           speak(STR.ui.unlock_groom);
         }, 900);
       }
+      if (after >= CFG.SKILL_UNLOCK.ScratchWave && !state.flags.sawLvlScratchWave) {
+        state.flags.sawLvlScratchWave = true;
+        setTimeout(() => {
+          showToast(STR.ui.unlock_scratch_wave);
+          speak(STR.ui.unlock_scratch_wave);
+        }, 900);
+      }
+      ensureCompanion();
     }
     updateHud();
+  }
+
+  function checkLevelClear() {
+    const alive = state.enemies.some((e) => e.alive);
+    if (alive || state.levelCleared) return;
+    state.levelCleared = true;
+    const bonus = (CFG.LEVEL_CLEAR_BONUS && CFG.LEVEL_CLEAR_BONUS[String(state.storyLevel)]) || 0;
+    if (bonus) gainExp(bonus);
+
+    const spec = encounterSpec(state.storyLevel);
+    const afterPost = () => {
+      if (state.storyLevel >= (CFG.STORY_LEVEL_MAX || 5)) {
+        // Creek teaser then soft ending
+        showDialogue(["creek_teaser_0", "creek_teaser_1", "ending_1", "ending_2"], () => {
+          state.flags.slice1Done = true;
+          state.flags.ending = true;
+          $("end1").textContent = STR.ui.ending_1;
+          $("end2").textContent = STR.ui.ending_2;
+          setMode("ending");
+          speak(STR.ui.ending_1);
+          saveGame();
+        }, "pebble");
+        return;
+      }
+      spawnStoryLevel(state.storyLevel + 1, false);
+    };
+
+    setTimeout(() => {
+      if (spec.midbossEscape) {
+        showToast(STR.ui.fox_escape);
+        speak(STR.ui.fox_escape);
+      }
+      playCutscene("post", afterPost);
+    }, 500);
   }
 
   function onBattleWin() {
@@ -616,40 +719,21 @@
     state.enemies = state.enemies.filter((e) => e.id !== enemy.id);
     state.battle = null;
     state.faintStreak = 0;
-    state.flags.tutFought = true;
-
-    if (enemy.type === "Mouse" && state.zone === "Forest" && state.flags.forestQuestAccepted) {
-      state.flags.miceCaught = Math.min(3, state.flags.miceCaught + 1);
-    }
 
     gainExp(exp);
     setMode("explore");
     showToast(STR.ui.win);
     speak(STR.ui.win);
 
-    if (enemy.type === "FoxCub") {
-      state.flags.foxDefeated = true;
-      setTimeout(() => {
-        showDialogue(["fox_win", "ending_1", "ending_2"], () => {
-          state.flags.ending = true;
-          $("end1").textContent = STR.ui.ending_1;
-          $("end2").textContent = STR.ui.ending_2;
-          setMode("ending");
-          speak(STR.ui.ending_1);
-          saveGame();
-        });
-      }, 600);
-    }
-
     updateQuestHud();
     saveGame();
+    checkLevelClear();
   }
 
   function onFaint() {
     state.battle = null;
     state.faintStreak++;
-    state.player.hp = state.player.maxHp; // full HP, keep EXP
-    // return to zone entrance
+    state.player.hp = state.player.maxHp;
     state.player.x = 80;
     state.player.y = H / 2;
     state.moveTarget = null;
@@ -680,33 +764,49 @@
     evt.preventDefault();
     const p = canvasPos(evt);
 
-    // tap NPC?
     for (const n of state.npcs) {
       if (dist(p, n) < n.r + 20) {
         const lines = n.lines();
-        showDialogue(lines, n.onDone);
+        showDialogue(lines, n.onDone, n.kind);
         return;
       }
     }
-    // tap enemy? (also collide while moving)
     for (const e of state.enemies) {
       if (e.alive && dist(p, e) < e.r + 16) {
-        // walk toward then battle — start immediately on tap for kids
         startBattle(e);
         return;
       }
     }
-    // move
     state.moveTarget = { x: clamp(p.x, 40, W - 40), y: clamp(p.y, 60, H - 40) };
   }
 
   canvas.addEventListener("pointerdown", onTap);
 
   // ---------- draw ----------
-  function drawPlaceholder(kind, x, y, r) {
-    const imgPath = CFG.art[kind];
-    const img = artImages[kind];
-    if (img && img.complete && img.naturalWidth) {
+  function artLoaded(key) {
+    const img = artImages[key];
+    return !!(img && img.complete && img.naturalWidth);
+  }
+
+  function resolveArtKey(kind, pose) {
+    const suffix = { idle: "Idle", walkA: "WalkA", walkB: "WalkB", atk: "Atk" }[pose] || "Idle";
+    const keyed = kind + suffix;
+    if (CFG.art[keyed] && artLoaded(keyed)) return keyed;
+    if (CFG.art[kind] && artLoaded(kind)) return kind;
+    return null;
+  }
+
+  function pickPose(moving, attacking) {
+    if (attacking) return "atk";
+    if (moving) return state.anim.walkFlip ? "walkB" : "walkA";
+    return "idle";
+  }
+
+  function drawPlaceholder(kind, x, y, r, pose) {
+    const usePose = pose || "idle";
+    const key = resolveArtKey(kind, usePose);
+    if (key) {
+      const img = artImages[key];
       ctx.drawImage(img, x - r, y - r, r * 2, r * 2);
       return;
     }
@@ -718,7 +818,6 @@
     ctx.strokeStyle = "#333";
     ctx.lineWidth = 2;
     ctx.stroke();
-    // ears for cats
     if (["player", "companion", "oldGrey", "pebble", "mamaCat", "littleMoss", "foxCub"].includes(kind)) {
       ctx.fillStyle = color;
       ctx.beginPath();
@@ -732,7 +831,6 @@
       ctx.lineTo(x + r * 0.1, y - r * 0.4);
       ctx.fill();
     }
-    // label
     ctx.fillStyle = "#222";
     ctx.font = "bold 11px sans-serif";
     ctx.textAlign = "center";
@@ -741,7 +839,6 @@
   }
 
   function draw() {
-    // bg — image if loaded, else placeholder tint
     const bgKey = state.zone === "Camp" ? "bgCamp" : state.zone === "Forest" ? "bgForest" : "bgCreek";
     const bgImg = artImages[bgKey];
     if (bgImg && bgImg.complete && bgImg.naturalWidth) {
@@ -754,73 +851,53 @@
         ctx.fillRect(0, i * 70, W, 30);
       }
     }
-    // zone label
     ctx.fillStyle = "rgba(0,0,0,0.35)";
     ctx.font = "bold 20px sans-serif";
     ctx.textAlign = "left";
-    ctx.fillText(state.zone, 16, H - 16);
+    ctx.fillText(state.zone + " · L" + state.storyLevel, 16, H - 16);
 
-    // NPCs
     for (const n of state.npcs) {
       const kind = n.kind === "gate" ? "oldGrey" : n.kind;
-      if (n.kind === "gate") {
-        ctx.fillStyle = "#8d6e63";
-        ctx.fillRect(n.x - 20, n.y - 50, 40, 100);
-        ctx.fillStyle = "#fff";
-        ctx.font = "bold 14px sans-serif";
-        ctx.textAlign = "center";
-        ctx.fillText("→", n.x, n.y);
-      } else {
-        drawPlaceholder(kind, n.x, n.y, n.r);
-      }
-      // dynamic bang: gates light up when zone quest is done
-      let bang = n.hasBang;
-      if (n.id === "gateForest") bang = state.flags.campDone;
-      if (n.id === "gateCreek") bang = state.flags.forestDone;
-      if (n.id === "oldGrey" || n.id === "forestElder") bang = true;
-      if (n.id === "mama") bang = !state.flags.mossFound || !state.flags.creekIntro;
-      if (n.id === "moss") bang = !state.flags.mossFound;
-      if (bang && state.mode === "explore") {
-        ctx.font = "bold 28px sans-serif";
-        ctx.textAlign = "center";
-        ctx.fillText("❗", n.x, n.y - n.r - 8);
-      }
+      drawPlaceholder(kind, n.x, n.y, n.r, "idle");
     }
 
-    // enemies
+    const now = performance.now();
     for (const e of state.enemies) {
       if (!e.alive) continue;
       const kind = e.type === "FoxCub" ? "foxCub" : e.type.toLowerCase();
-      drawPlaceholder(kind, e.x, e.y, e.r);
+      drawPlaceholder(kind, e.x, e.y, e.r, "idle");
     }
 
-    // companion
-    if (state.companion && state.flags.pebbleJoined) {
-      drawPlaceholder("companion", state.companion.x, state.companion.y, state.companion.r);
+    if (state.companion && state.flags.companionJoined) {
+      const c = state.companion;
+      const cMoving = Math.hypot(c.x - (state.player.x - 40), c.y - (state.player.y + 20)) > 4;
+      const cAtk = now < state.anim.companionAtkUntil;
+      drawPlaceholder("companion", c.x, c.y, c.r, pickPose(cMoving, cAtk));
     }
 
-    // player
-    drawPlaceholder("player", state.player.x, state.player.y, state.player.r);
+    {
+      const pMoving = !!state.moveTarget && state.mode === "explore";
+      const pAtk = now < state.anim.playerAtkUntil;
+      drawPlaceholder("player", state.player.x, state.player.y, state.player.r, pickPose(pMoving, pAtk));
+    }
 
-    // battle overlay vignette
     if (state.mode === "battle" && state.battle) {
       ctx.fillStyle = "rgba(0,0,0,0.25)";
       ctx.fillRect(0, 0, W, H);
       const e = state.battle.enemy;
-      drawPlaceholder(
-        e.type === "FoxCub" ? "foxCub" : e.type.toLowerCase(),
-        W * 0.7, H * 0.4, 50
-      );
-      drawPlaceholder("player", W * 0.28, H * 0.45, 44);
-      if (state.flags.pebbleJoined) {
-        drawPlaceholder("companion", W * 0.18, H * 0.55, 28);
+      const eKind = e.type === "FoxCub" ? "foxCub" : e.type.toLowerCase();
+      const eAtk = now < state.anim.enemyAtkUntil;
+      const pAtkB = now < state.anim.playerAtkUntil;
+      const cAtkB = now < state.anim.companionAtkUntil;
+      drawPlaceholder(eKind, W * 0.7, H * 0.4, 50, pickPose(false, eAtk));
+      drawPlaceholder("player", W * 0.28, H * 0.45, 44, pickPose(false, pAtkB));
+      if (state.flags.companionJoined) {
+        drawPlaceholder("companion", W * 0.18, H * 0.55, 28, pickPose(false, cAtkB));
       }
-      // HP bars
       drawBar(W * 0.7 - 50, H * 0.4 - 70, 100, 12, state.battle.enemyHp / state.battle.enemyMaxHp, "#e53935");
       drawBar(W * 0.28 - 50, H * 0.45 - 70, 100, 12, state.player.hp / state.player.maxHp, "#4caf50");
     }
 
-    // arrow DOM position
     const arrow = $("arrow");
     if (state.targetArrow && state.mode === "explore") {
       const rect = canvas.getBoundingClientRect();
@@ -842,8 +919,12 @@
     ctx.fillRect(x, y, w * clamp(pct, 0, 1), h);
   }
 
-  // ---------- update ----------
   function update(dt) {
+    state.anim.walkT += dt;
+    if (state.anim.walkT >= 0.15) {
+      state.anim.walkT = 0;
+      state.anim.walkFlip = state.anim.walkFlip ? 0 : 1;
+    }
     if (state.mode !== "explore") return;
     const p = state.player;
     if (state.moveTarget) {
@@ -858,14 +939,12 @@
         p.y += (dy / d) * speed * dt;
       }
     }
-    // companion follow
-    if (state.companion && state.flags.pebbleJoined) {
+    if (state.companion && state.flags.companionJoined) {
       const c = state.companion;
       const tx = p.x - 40, ty = p.y + 20;
       c.x += (tx - c.x) * 0.08;
       c.y += (ty - c.y) * 0.08;
     }
-    // collide enemies
     for (const e of state.enemies) {
       if (e.alive && dist(p, e) < p.r + e.r - 4) {
         state.moveTarget = null;
@@ -884,15 +963,10 @@
     requestAnimationFrame(loop);
   }
 
-  // ---------- wire buttons ----------
   function wire() {
     $("btn-start").onclick = () => {
       newGame();
-      setMode("explore");
-      showDialogue(["camp_elder_1", "camp_elder_2", "camp_elder_3"], () => {
-        state.flags.tutTalked = true;
-        updateQuestHud();
-      });
+      // newGame already fires pre cutscene
     };
     $("btn-continue").onclick = () => {
       if (loadGame()) setMode("explore");
@@ -913,7 +987,6 @@
     };
     $("btn-restart").onclick = () => {
       newGame();
-      setMode("explore");
     };
     $("btn-faint-ok").onclick = () => {
       setMode("explore");
@@ -921,13 +994,12 @@
     };
     $("btn-end-restart").onclick = () => {
       newGame();
-      setMode("explore");
     };
     $("btn-claw").onclick = () => playerClaw();
     $("btn-pounce").onclick = () => playerPounce();
     $("btn-groom").onclick = () => playerGroom();
+    $("btn-scratch-wave").onclick = () => playerScratchWave();
 
-    // apply string labels
     document.querySelectorAll("[data-str]").forEach((el) => {
       const k = el.getAttribute("data-str");
       if (STR.ui[k]) el.textContent = STR.ui[k];
@@ -944,19 +1016,19 @@
     keys.forEach((k) => {
       const img = new Image();
       img.src = CFG.art[k];
-      artImages[k] = img; // onerror → placeholder path
+      artImages[k] = img;
       img.onload = () => {
         if (k.startsWith("btn")) applyBtnArt();
       };
     });
   }
 
-  // Optional comic button skins (config.art btn*); missing files keep HTML labels.
   function applyBtnArt() {
     const map = {
       btnClaw: "btn-claw",
       btnPounce: "btn-pounce",
       btnGroom: "btn-groom",
+      btnScratchWave: "btn-scratch-wave",
       btnContinue: "btn-continue",
       btnRetry: "btn-faint-ok",
     };
@@ -974,7 +1046,6 @@
     });
   }
 
-  // ---------- boot ----------
   async function boot() {
     const [cRes, sRes] = await Promise.all([
       fetch("config.json"),
@@ -990,9 +1061,8 @@
     updateMuteBtn();
     updateHud();
 
-    // show continue if save exists
     try {
-      if (localStorage.getItem(CFG.LOCALSTORAGE_KEY)) {
+      if (localStorage.getItem(CFG.LOCALSTORAGE_KEY) || localStorage.getItem(CFG.LOCALSTORAGE_LEGACY_KEY)) {
         $("btn-continue").classList.remove("hidden");
       }
     } catch (_) {}
