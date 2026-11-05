@@ -1,0 +1,122 @@
+{
+  "version": "v0.2.0",
+  "ZONES": [
+    "Camp",
+    "Forest",
+    "Creek"
+  ],
+  "LEVEL_MAX": 4,
+  "EXP_THRESHOLDS": [
+    0,
+    30,
+    80,
+    150
+  ],
+  "EXP_REWARD": {
+    "Bug": 10,
+    "Mouse": 15,
+    "FoxCub": 40
+  },
+  "PLAYER_HP_BASE": 40,
+  "PLAYER_HP_PER_LEVEL": 10,
+  "PLAYER_ATK_BASE": 6,
+  "PLAYER_ATK_PER_LEVEL": 2,
+  "SKILL_UNLOCK": {
+    "Pounce": 2,
+    "Groom": 3
+  },
+  "POUNCE_MULT": 2,
+  "POUNCE_WAIT_TURNS": 2,
+  "GROOM_HEAL_PCT": 0.4,
+  "GROOM_USES_PER_BATTLE": 2,
+  "COMPANION_UNLOCK_AFTER": "Forest",
+  "COMPANION_ASSIST_EVERY": 2,
+  "COMPANION_ATK": 4,
+  "FAINT_RULE": "zone_entrance_full_hp_keep_exp",
+  "ASSIST_ON_FAIL_STREAK": 2,
+  "ASSIST_ON_FAIL_ENEMY_HP_PCT": 0.2,
+  "TTS_RATE": 0.85,
+  "TTS_LANG": "en-US",
+  "LOCALSTORAGE_KEY": "mao_zu_v01",
+  "ENEMIES": {
+    "Bug": {
+      "hp": 15,
+      "atk": 3,
+      "exp": 10,
+      "color": "#6aaf3a"
+    },
+    "Mouse": {
+      "hp": 25,
+      "atk": 4,
+      "exp": 15,
+      "color": "#a08060"
+    },
+    "FoxCub": {
+      "hp": 50,
+      "atk": 5,
+      "exp": 40,
+      "color": "#e07030"
+    }
+  },
+  "ZONE_ENEMY_COUNTS": {
+    "Camp": {
+      "Bug": 3
+    },
+    "Forest": {
+      "Mouse": 5
+    },
+    "Creek": {
+      "Mouse": 2,
+      "FoxCub": 1
+    }
+  },
+  "QUESTS": {
+    "Camp": {
+      "id": "tut_bug",
+      "catch": 0,
+      "goal": "tutorial"
+    },
+    "Forest": {
+      "id": "catch_mice",
+      "catch": 3,
+      "enemy": "Mouse"
+    },
+    "Creek": {
+      "id": "find_moss",
+      "goal": "find_Little_Moss"
+    }
+  },
+  "art": {
+    "player": "art/player.png",
+    "companion": "art/companion.png",
+    "oldGrey": "art/old_grey.png",
+    "pebble": "art/pebble.png",
+    "mamaCat": "art/mama_cat.png",
+    "littleMoss": "art/little_moss.png",
+    "bug": "art/bug.png",
+    "mouse": "art/mouse.png",
+    "foxCub": "art/fox_cub.png",
+    "bgCamp": "art/bg_camp.png",
+    "bgForest": "art/bg_forest.png",
+    "bgCreek": "art/bg_creek.png",
+    "btnClaw": "art/btn_claw.png",
+    "btnPounce": "art/btn_pounce.png",
+    "btnGroom": "art/btn_groom.png",
+    "btnContinue": "art/btn_continue.png",
+    "btnRetry": "art/btn_retry.png"
+  },
+  "placeholderColors": {
+    "player": "#f4c27a",
+    "companion": "#c8b0e8",
+    "oldGrey": "#9a9a9a",
+    "pebble": "#7ec8e3",
+    "mamaCat": "#e8a0b8",
+    "littleMoss": "#90d090",
+    "bug": "#6aaf3a",
+    "mouse": "#a08060",
+    "foxCub": "#e07030",
+    "bgCamp": "#c8e6c0",
+    "bgForest": "#7a9e6a",
+    "bgCreek": "#8ec8d8"
+  }
+}
