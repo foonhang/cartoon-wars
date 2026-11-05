@@ -6,9 +6,10 @@ const STR = JSON.parse(fs.readFileSync('./strings.en.json','utf8'));
 const game = fs.readFileSync('./game.js','utf8');
 const html = fs.readFileSync('./index.html','utf8');
 
-assert.strictEqual(CFG.version, 'v0.4.0-s1');
-assert.strictEqual(STR.ui.version, 'v0.4.0-s1');
-assert.ok(html.includes('v0.4.0-s1'), 'index.html version');
+assert.strictEqual(CFG.version, 'v0.5.0');
+assert.strictEqual(STR.ui.version, 'v0.5.0');
+assert.ok(html.includes('v0.5.0'), 'index.html version');
+assert.ok(html.includes('creator-screen'), 'creator screen');
 assert.ok(html.includes('btn-scratch-wave'), 'scratch wave button');
 
 assert.strictEqual(CFG.LEVEL_MAX, 5);
@@ -123,4 +124,26 @@ assert.ok(css.includes('min-height: 72px'));
 assert.ok(css.includes('#dlg-avatar'));
 assert.ok(css.includes('background-size: cover'));
 
+
+// v0.5 creator
+assert.ok(CFG.CREATOR, 'CREATOR block');
+assert.strictEqual(CFG.CREATOR.furs.length, 4);
+assert.strictEqual(CFG.CREATOR.eyes.length, 3);
+assert.strictEqual(CFG.CREATOR.markings.length, 4);
+assert.strictEqual(CFG.CREATOR.accessories.length, 4);
+assert.strictEqual(Object.keys(CFG.CREATOR.presets).length, 4);
+assert.ok(CFG.CREATOR.presets.Sunny);
+assert.ok(CFG.CREATOR.presets.Mystic);
+assert.ok(CFG.CREATOR.presets.Shadow);
+assert.ok(CFG.CREATOR.presets.CreamDream);
+assert.strictEqual(CFG.CREATOR.presets.Sunny.fur, 'orange');
+assert.strictEqual(CFG.LOCALSTORAGE_KEY, 'mao_zu_v04');
+assert.ok(STR.ui.creator_title);
+assert.ok(STR.ui.creator_create);
+assert.ok(STR.dialogue.lv2_pre_0.includes('{playerName}') || STR.dialogue.lv3_post_0.includes('{playerName}'));
+for (const needle of ['playerCustom', 'defaultPlayerCustom', 'drawTintedPlayer', 'confirmCreator', 'openCreator', 'creator-screen', 'Sunny', 'interpolatePlayerName']) {
+  assert.ok(game.includes(needle), 'missing '+needle);
+}
+
 console.log('SMOKE OK');
+

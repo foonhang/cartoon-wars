@@ -1,4 +1,4 @@
-/* Cat Clan RPG light v0.4.0-s1 — Slice1 lv1–5; numbers from config.json; cutscenes §E */
+/* Cat Clan RPG light v0.5.0 — creator + Slice1 lv1–5; numbers from config.json; cutscenes §E */
 (() => {
   "use strict";
 
@@ -41,7 +41,7 @@
   function replay() { speak(lastSpoken); }
 
   const state = {
-    mode: "title", // title | explore | dialogue | battle | faint | ending | pause
+    mode: "title", // title | creator | explore | dialogue | battle | faint | ending | pause
     zone: "Camp",
     storyLevel: 1,
     levelCleared: false,
@@ -80,6 +80,8 @@
       enemyAtkUntil: 0,
     },
     _defeated: {},
+    playerCustom: null,
+    _creatorDraft: null,
   };
 
   const W = 960, H = 540;
@@ -230,6 +232,7 @@
       defeated: state._defeated || {},
       muted,
       migratedFrom: state._migratedFrom || null,
+      playerCustom: state.playerCustom || defaultPlayerCustom(),
     };
     try { localStorage.setItem(key, JSON.stringify(data)); } catch (_) {}
   }
@@ -298,6 +301,18 @@
       state.storyLevel = data.storyLevel || 1;
       state.levelCleared = !!data.levelCleared;
       state._migratedFrom = data.migratedFrom || null;
+      if (data.playerCustom && data.playerCustom.fur) {
+        state.playerCustom = {
+          name: sanitizeName(data.playerCustom.name),
+          fur: data.playerCustom.fur,
+          eyes: data.playerCustom.eyes || "amber",
+          markings: data.playerCustom.markings || "none",
+          accessory: data.playerCustom.accessory || "none",
+          preset: data.playerCustom.preset || null,
+        };
+      } else {
+        state.playerCustom = defaultPlayerCustom();
+      }
       updateMuteBtn();
       spawnStoryLevel(state.storyLevel, true);
       if (state.flags.slice1Done) {
@@ -319,6 +334,221 @@
   }
 
   function newGame() {
+    openCreator(true);
+  }
+
+  function applyPlayerStats() {
+    const lv = state.player.level;
+    state.player.maxHp = playerMaxHp(lv);
+    state.player.atk = playerAtk(lv);
+    if (state.player.hp > state.player.maxHp) state.player.hp = state.player.maxHp;
+  }
+
+
+  // ---------- creator (v0.5) ----------
+  function defaultPlayerCustom() {
+    const presets = (CFG.CREATOR && CFG.CREATOR.presets) || {};
+    const sunny = presets.Sunny || {
+      name: "Kit", fur: "orange", eyes: "amber", markings: "none", accessory: "none"
+    };
+    return { ...sunny, preset: "Sunny" };
+  }
+
+  function sanitizeName(raw) {
+    const max = (CFG.CREATOR && CFG.CREATOR.nameMax) || 12;
+    let s = String(raw || "").replace(/[^A-Za-z]/g, "");
+    if (!s) s = (CFG.CREATOR && CFG.CREATOR.defaultName) || "Kit";
+    return s.slice(0, max);
+  }
+
+  function applyPreset(name) {
+    const presets = (CFG.CREATOR && CFG.CREATOR.presets) || {};
+    const p = presets[name];
+    if (!p) return defaultPlayerCustom();
+    return {
+      name: sanitizeName(p.name),
+      fur: p.fur,
+      eyes: p.eyes,
+      markings: p.markings,
+      accessory: p.accessory,
+      preset: name,
+    };
+  }
+
+  function getPlayerCustom() {
+    return state.playerCustom || defaultPlayerCustom();
+  }
+
+  function playerDisplayName() {
+    return sanitizeName(getPlayerCustom().name);
+  }
+
+  function interpolatePlayerName(text) {
+    return String(text || "").replace(/\{playerName\}/g, playerDisplayName());
+  }
+
+  function hexToRgb(hex) {
+    const h = String(hex || "#ffffff").replace("#", "");
+    const full = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+    const n = parseInt(full, 16);
+    if (Number.isNaN(n)) return { r: 255, g: 255, b: 255 };
+    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+  }
+
+  function tintImageToCanvas(img, furHex, w, h) {
+    const off = document.createElement("canvas");
+    off.width = w;
+    off.height = h;
+    const octx = off.getContext("2d");
+    octx.clearRect(0, 0, w, h);
+    octx.drawImage(img, 0, 0, w, h);
+    octx.globalCompositeOperation = "multiply";
+    octx.fillStyle = furHex || "#E8A040";
+    octx.fillRect(0, 0, w, h);
+    octx.globalCompositeOperation = "destination-in";
+    octx.drawImage(img, 0, 0, w, h);
+    octx.globalCompositeOperation = "source-over";
+    return off;
+  }
+
+  function drawEyeDots(targetCtx, x, y, r, eyeHex) {
+    const ey = eyeHex || "#FFB84D";
+    const ox = r * 0.28;
+    const oy = -r * 0.12;
+    const er = Math.max(2, r * 0.12);
+    for (const sx of [-1, 1]) {
+      targetCtx.beginPath();
+      targetCtx.fillStyle = ey;
+      targetCtx.arc(x + sx * ox, y + oy, er, 0, Math.PI * 2);
+      targetCtx.fill();
+      targetCtx.beginPath();
+      targetCtx.fillStyle = "#222";
+      targetCtx.arc(x + sx * ox, y + oy, er * 0.45, 0, Math.PI * 2);
+      targetCtx.fill();
+    }
+  }
+
+  function tryOverlay(targetCtx, path, x, y, size) {
+    if (!path) return;
+    // runtime optional overlays — skip if not loaded
+    const cacheKey = "_ov_" + path;
+    let img = artImages[cacheKey];
+    if (!img) {
+      img = new Image();
+      img.src = path;
+      artImages[cacheKey] = img;
+    }
+    if (img.complete && img.naturalWidth) {
+      targetCtx.drawImage(img, x - size / 2, y - size / 2, size, size);
+    }
+  }
+
+  function drawTintedPlayer(targetCtx, x, y, r, custom, pose) {
+    const c = custom || getPlayerCustom();
+    const usePose = pose || "idle";
+    const key = resolveArtKey("player", usePose);
+    const furHex = (CFG.CREATOR && CFG.CREATOR.furColors && CFG.CREATOR.furColors[c.fur]) || "#E8A040";
+    const eyeHex = (CFG.CREATOR && CFG.CREATOR.eyeColors && CFG.CREATOR.eyeColors[c.eyes]) || "#FFB84D";
+    const size = r * 2;
+    if (key) {
+      const img = artImages[key];
+      const tinted = tintImageToCanvas(img, furHex, size, size);
+      targetCtx.drawImage(tinted, x - r, y - r, size, size);
+    } else {
+      targetCtx.beginPath();
+      targetCtx.fillStyle = furHex;
+      targetCtx.arc(x, y, r, 0, Math.PI * 2);
+      targetCtx.fill();
+      targetCtx.strokeStyle = "#333";
+      targetCtx.lineWidth = 2;
+      targetCtx.stroke();
+    }
+    drawEyeDots(targetCtx, x, y, r, eyeHex);
+    if (c.markings && c.markings !== "none") {
+      tryOverlay(targetCtx, "art/markings_" + c.markings + ".png", x, y, size);
+    }
+    if (c.accessory && c.accessory !== "none") {
+      tryOverlay(targetCtx, "art/accessory_" + c.accessory + ".png", x, y, size);
+    }
+  }
+
+  function refreshCreatorPreview() {
+    const canvas = $("creator-preview");
+    if (!canvas) return;
+    const draft = state._creatorDraft || defaultPlayerCustom();
+    const cctx = canvas.getContext("2d");
+    cctx.clearRect(0, 0, canvas.width, canvas.height);
+    cctx.fillStyle = "#fff8e7";
+    cctx.fillRect(0, 0, canvas.width, canvas.height);
+    drawTintedPlayer(cctx, canvas.width / 2, canvas.height / 2 + 8, 56, draft, "idle");
+  }
+
+  function buildChipRow(el, options, selected, onPick, labelFn) {
+    if (!el) return;
+    el.innerHTML = "";
+    options.forEach((opt) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "chip" + (opt === selected ? " active" : "");
+      btn.textContent = labelFn ? labelFn(opt) : opt;
+      btn.onclick = () => onPick(opt);
+      el.appendChild(btn);
+    });
+  }
+
+  function syncCreatorForm() {
+    const draft = state._creatorDraft || defaultPlayerCustom();
+    state._creatorDraft = draft;
+    const C = CFG.CREATOR || {};
+    $("creator-name").value = draft.name || "Kit";
+    $("creator-title").textContent = (STR.ui && STR.ui.creator_title) || "Make your cat!";
+    $("btn-creator-go").textContent = (STR.ui && STR.ui.creator_create) || "Create!";
+    $("btn-creator-back").textContent = (STR.ui && STR.ui.creator_back) || "Back";
+    buildChipRow($("creator-fur"), C.furs || [], draft.fur, (v) => {
+      draft.fur = v; draft.preset = null; refreshCreatorPreview(); syncCreatorForm();
+    }, (v) => (STR.ui && STR.ui["fur_" + v]) || v);
+    buildChipRow($("creator-eyes"), C.eyes || [], draft.eyes, (v) => {
+      draft.eyes = v; draft.preset = null; refreshCreatorPreview(); syncCreatorForm();
+    }, (v) => (STR.ui && STR.ui["eyes_" + v]) || v);
+    buildChipRow($("creator-markings"), C.markings || [], draft.markings, (v) => {
+      draft.markings = v; draft.preset = null; refreshCreatorPreview(); syncCreatorForm();
+    }, (v) => (STR.ui && STR.ui["mark_" + v]) || v);
+    buildChipRow($("creator-accessory"), C.accessories || [], draft.accessory, (v) => {
+      draft.accessory = v; draft.preset = null; refreshCreatorPreview(); syncCreatorForm();
+    }, (v) => (STR.ui && STR.ui["acc_" + v]) || v);
+    const presetsEl = $("creator-presets");
+    if (presetsEl) {
+      presetsEl.innerHTML = "";
+      Object.keys(C.presets || {}).forEach((name) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "chip" + (draft.preset === name ? " active" : "");
+        const sk = "preset_" + name.toLowerCase();
+        btn.textContent = (STR.ui && STR.ui[sk]) || name;
+        btn.onclick = () => {
+          state._creatorDraft = applyPreset(name);
+          syncCreatorForm();
+          refreshCreatorPreview();
+        };
+        presetsEl.appendChild(btn);
+      });
+    }
+    refreshCreatorPreview();
+  }
+
+  function openCreator(fromTitle) {
+    state._creatorDraft = defaultPlayerCustom();
+    state._creatorFromTitle = !!fromTitle;
+    setMode("creator");
+    syncCreatorForm();
+  }
+
+  function confirmCreator() {
+    const draft = state._creatorDraft || defaultPlayerCustom();
+    draft.name = sanitizeName($("creator-name").value);
+    state.playerCustom = { ...draft };
+    state._creatorDraft = null;
+    // start fresh adventure after create
     state.player.exp = 0;
     state.player.level = 1;
     applyPlayerStats();
@@ -330,15 +560,10 @@
     state.storyLevel = 1;
     state.levelCleared = false;
     state._migratedFrom = null;
+    saveGame();
     spawnStoryLevel(1, false);
   }
 
-  function applyPlayerStats() {
-    const lv = state.player.level;
-    state.player.maxHp = playerMaxHp(lv);
-    state.player.atk = playerAtk(lv);
-    if (state.player.hp > state.player.maxHp) state.player.hp = state.player.maxHp;
-  }
 
   // ---------- UI ----------
   function updateHud() {
@@ -395,6 +620,8 @@
     $("ending-screen").classList.toggle("hidden", m !== "ending");
     $("pause-screen").classList.toggle("hidden", m !== "pause");
     $("title-screen").classList.toggle("hidden", m !== "title");
+    const creator = $("creator-screen");
+    if (creator) creator.classList.toggle("hidden", m !== "creator");
   }
 
   // ---------- dialogue ----------
@@ -426,6 +653,22 @@
     const portKey = kind + "Portrait";
     const img = artImages[portKey];
     const col = CFG.placeholderColors[kind] || CFG.placeholderColors.oldGrey || "#9a9a9a";
+    if (kind === "player") {
+      const custom = getPlayerCustom();
+      const furHex = (CFG.CREATOR && CFG.CREATOR.furColors && CFG.CREATOR.furColors[custom.fur]) || col;
+      const off = document.createElement("canvas");
+      off.width = 96; off.height = 96;
+      const octx = off.getContext("2d");
+      octx.fillStyle = furHex;
+      octx.fillRect(0, 0, 96, 96);
+      drawTintedPlayer(octx, 48, 52, 40, custom, "idle");
+      av.style.backgroundColor = furHex;
+      av.style.backgroundImage = "url(" + off.toDataURL() + ")";
+      av.style.backgroundSize = "cover";
+      av.style.backgroundPosition = "center";
+      av.style.backgroundRepeat = "no-repeat";
+      return;
+    }
     if (img && img.complete && img.naturalWidth) {
       av.style.backgroundColor = col;
       av.style.backgroundImage = "url(" + CFG.art[portKey] + ")";
@@ -449,7 +692,8 @@
       return;
     }
     const key = state.dialogueQueue.shift();
-    const text = STR.dialogue[key] || STR.ui[key] || key;
+    const raw = STR.dialogue[key] || STR.ui[key] || key;
+    const text = interpolatePlayerName(raw);
     $("dlg-text").textContent = text;
     // speaker from cutscene queue head matching
     let speaker = resolveSpeaker(key);
@@ -804,6 +1048,10 @@
 
   function drawPlaceholder(kind, x, y, r, pose) {
     const usePose = pose || "idle";
+    if (kind === "player") {
+      drawTintedPlayer(ctx, x, y, r, getPlayerCustom(), usePose);
+      return;
+    }
     const key = resolveArtKey(kind, usePose);
     if (key) {
       const img = artImages[key];
@@ -966,7 +1214,14 @@
   function wire() {
     $("btn-start").onclick = () => {
       newGame();
-      // newGame already fires pre cutscene
+    };
+    $("btn-creator-go").onclick = () => confirmCreator();
+    $("btn-creator-back").onclick = () => setMode("title");
+    $("creator-name").oninput = () => {
+      if (!state._creatorDraft) state._creatorDraft = defaultPlayerCustom();
+      state._creatorDraft.name = sanitizeName($("creator-name").value);
+      state._creatorDraft.preset = null;
+      refreshCreatorPreview();
     };
     $("btn-continue").onclick = () => {
       if (loadGame()) setMode("explore");

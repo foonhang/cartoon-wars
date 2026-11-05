@@ -1,6 +1,6 @@
 # Cat Clan (貓族) — web prototype
 
-**Version:** v0.4.0-s1 (Slice1 lv1–5)
+**Version:** v0.5.0 (character creator + Slice1 lv1–5)
 
 Kids ~7.5 story RPG light. Camp→Forest; Creek teaser after FoxCub midboss.
 
@@ -21,6 +21,7 @@ node smoke_test.mjs
 - Skills: Claw, Pounce@2, Groom@3, ScratchWave@5 (Leap@7 table only; Roar deferred)
 - Companion: cream buddy @ story Lv3; OldGrey/Pebble = NPC
 - Enemies: Bug / Mouse / FoxCub midboss (HP35 ATK5)
-- Save key: `mao_zu_v04` (migrates from `mao_zu_v01`)
+- Save key: `mao_zu_v04` (migrates from `mao_zu_v01`; `playerCustom` Sunny default)
+- Creator: name/fur/eyes/markings/accessory + 4 presets; tint interim until Art P0
 
 Pages: parent CloudAgent push — do not self-push.

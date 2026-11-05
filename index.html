@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <title>Cat Clan v0.4.0-s1</title>
+  <title>Cat Clan v0.5.0</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -47,17 +47,35 @@
     <div id="top-tools">
       <button type="button" id="btn-mute" class="icon-btn" title="Mute">🔇</button>
       <button type="button" id="btn-pause" class="icon-btn" title="Pause">⏸</button>
-      <span id="ver">v0.4.0-s1</span>
+      <span id="ver">v0.5.0</span>
     </div>
 
     <div id="title-screen">
       <h1>Cat Clan</h1>
       <p class="sub">Tap to start!</p>
-      <p class="ver">v0.4.0-s1</p>
+      <p class="ver">v0.5.0</p>
       <button type="button" id="btn-start" class="big-btn">New Game</button>
       <button type="button" id="btn-continue" class="big-btn hidden">Continue</button>
     </div>
 
+
+    <div id="creator-screen" class="overlay hidden">
+      <h2 id="creator-title">Make your cat!</h2>
+      <canvas id="creator-preview" width="160" height="160" aria-label="Preview"></canvas>
+      <div class="creator-row">
+        <label for="creator-name">Name</label>
+        <input id="creator-name" type="text" maxlength="12" autocomplete="off" spellcheck="false" />
+      </div>
+      <div class="creator-row chips" id="creator-fur" data-slot="fur"></div>
+      <div class="creator-row chips" id="creator-eyes" data-slot="eyes"></div>
+      <div class="creator-row chips" id="creator-markings" data-slot="markings"></div>
+      <div class="creator-row chips" id="creator-accessory" data-slot="accessory"></div>
+      <div class="creator-presets" id="creator-presets"></div>
+      <div class="creator-actions">
+        <button type="button" id="btn-creator-back" class="big-btn">Back</button>
+        <button type="button" id="btn-creator-go" class="big-btn">Create!</button>
+      </div>
+    </div>
     <div id="pause-screen" class="overlay hidden">
       <h2>Pause</h2>
       <button type="button" id="btn-resume" class="big-btn">Continue</button>

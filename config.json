@@ -1,9 +1,25 @@
 {
-  "version": "v0.4.0-s1",
-  "ZONES": ["Camp", "Forest", "Creek"],
+  "version": "v0.5.0",
+  "ZONES": [
+    "Camp",
+    "Forest",
+    "Creek"
+  ],
   "LEVEL_MAX": 5,
   "STORY_LEVEL_MAX": 5,
-  "EXP_THRESHOLDS": [0, 50, 120, 220, 360, 550, 800, 1120, 1520, 2020, 2650],
+  "EXP_THRESHOLDS": [
+    0,
+    50,
+    120,
+    220,
+    360,
+    550,
+    800,
+    1120,
+    1520,
+    2020,
+    2650
+  ],
   "LEVEL_CLEAR_BONUS": {
     "1": 50,
     "2": 70,
@@ -42,80 +58,242 @@
   "LOCALSTORAGE_KEY": "mao_zu_v04",
   "LOCALSTORAGE_LEGACY_KEY": "mao_zu_v01",
   "ENEMIES": {
-    "Bug": { "hp": 18, "atk": 3, "exp": 10, "color": "#6aaf3a" },
-    "Mouse": { "hp": 24, "atk": 4, "exp": 15, "color": "#a08060" },
-    "FoxCub": { "hp": 35, "atk": 5, "exp": 25, "color": "#e07030" }
+    "Bug": {
+      "hp": 18,
+      "atk": 3,
+      "exp": 10,
+      "color": "#6aaf3a"
+    },
+    "Mouse": {
+      "hp": 24,
+      "atk": 4,
+      "exp": 15,
+      "color": "#a08060"
+    },
+    "FoxCub": {
+      "hp": 35,
+      "atk": 5,
+      "exp": 25,
+      "color": "#e07030"
+    }
   },
   "LEVEL_ENCOUNTERS": {
-    "1": { "zone": "Camp", "enemies": [{ "type": "Bug", "count": 3 }] },
-    "2": { "zone": "Camp", "enemies": [{ "type": "Mouse", "count": 1 }] },
-    "3": { "zone": "Forest", "enemies": [{ "type": "Bug", "count": 2 }, { "type": "Mouse", "count": 1 }] },
-    "4": { "zone": "Forest", "enemies": [{ "type": "Mouse", "count": 2 }] },
-    "5": { "zone": "Forest", "enemies": [{ "type": "FoxCub", "count": 1 }], "midbossEscape": true }
+    "1": {
+      "zone": "Camp",
+      "enemies": [
+        {
+          "type": "Bug",
+          "count": 3
+        }
+      ]
+    },
+    "2": {
+      "zone": "Camp",
+      "enemies": [
+        {
+          "type": "Mouse",
+          "count": 1
+        }
+      ]
+    },
+    "3": {
+      "zone": "Forest",
+      "enemies": [
+        {
+          "type": "Bug",
+          "count": 2
+        },
+        {
+          "type": "Mouse",
+          "count": 1
+        }
+      ]
+    },
+    "4": {
+      "zone": "Forest",
+      "enemies": [
+        {
+          "type": "Mouse",
+          "count": 2
+        }
+      ]
+    },
+    "5": {
+      "zone": "Forest",
+      "enemies": [
+        {
+          "type": "FoxCub",
+          "count": 1
+        }
+      ],
+      "midbossEscape": true
+    }
   },
   "CUTSCENES": {
     "1": {
       "pre": [
-        { "speaker": "mamaCat", "key": "lv1_pre_0" },
-        { "speaker": "player", "key": "lv1_pre_1" },
-        { "speaker": "mamaCat", "key": "lv1_pre_2" }
+        {
+          "speaker": "mamaCat",
+          "key": "lv1_pre_0"
+        },
+        {
+          "speaker": "player",
+          "key": "lv1_pre_1"
+        },
+        {
+          "speaker": "mamaCat",
+          "key": "lv1_pre_2"
+        }
       ],
       "post": [
-        { "speaker": "mamaCat", "key": "lv1_post_0" },
-        { "speaker": "player", "key": "lv1_post_1" },
-        { "speaker": "mamaCat", "key": "lv1_post_2" }
+        {
+          "speaker": "mamaCat",
+          "key": "lv1_post_0"
+        },
+        {
+          "speaker": "player",
+          "key": "lv1_post_1"
+        },
+        {
+          "speaker": "mamaCat",
+          "key": "lv1_post_2"
+        }
       ]
     },
     "2": {
       "pre": [
-        { "speaker": "littleMoss", "key": "lv2_pre_0" },
-        { "speaker": "player", "key": "lv2_pre_1" },
-        { "speaker": "littleMoss", "key": "lv2_pre_2" }
+        {
+          "speaker": "littleMoss",
+          "key": "lv2_pre_0"
+        },
+        {
+          "speaker": "player",
+          "key": "lv2_pre_1"
+        },
+        {
+          "speaker": "littleMoss",
+          "key": "lv2_pre_2"
+        }
       ],
       "post": [
-        { "speaker": "littleMoss", "key": "lv2_post_0" },
-        { "speaker": "player", "key": "lv2_post_1" },
-        { "speaker": "littleMoss", "key": "lv2_post_2" }
+        {
+          "speaker": "littleMoss",
+          "key": "lv2_post_0"
+        },
+        {
+          "speaker": "player",
+          "key": "lv2_post_1"
+        },
+        {
+          "speaker": "littleMoss",
+          "key": "lv2_post_2"
+        }
       ]
     },
     "3": {
       "pre": [
-        { "speaker": "player", "key": "lv3_pre_0" },
-        { "speaker": "oldGrey", "key": "lv3_pre_1" },
-        { "speaker": "player", "key": "lv3_pre_2" },
-        { "speaker": "oldGrey", "key": "lv3_pre_3" }
+        {
+          "speaker": "player",
+          "key": "lv3_pre_0"
+        },
+        {
+          "speaker": "oldGrey",
+          "key": "lv3_pre_1"
+        },
+        {
+          "speaker": "player",
+          "key": "lv3_pre_2"
+        },
+        {
+          "speaker": "oldGrey",
+          "key": "lv3_pre_3"
+        }
       ],
       "post": [
-        { "speaker": "oldGrey", "key": "lv3_post_0" },
-        { "speaker": "player", "key": "lv3_post_1" },
-        { "speaker": "oldGrey", "key": "lv3_post_2" }
+        {
+          "speaker": "oldGrey",
+          "key": "lv3_post_0"
+        },
+        {
+          "speaker": "player",
+          "key": "lv3_post_1"
+        },
+        {
+          "speaker": "oldGrey",
+          "key": "lv3_post_2"
+        }
       ]
     },
     "4": {
       "pre": [
-        { "speaker": "oldGrey", "key": "lv4_pre_0" },
-        { "speaker": "pebble", "key": "lv4_pre_1" },
-        { "speaker": "player", "key": "lv4_pre_2" },
-        { "speaker": "pebble", "key": "lv4_pre_3" }
+        {
+          "speaker": "oldGrey",
+          "key": "lv4_pre_0"
+        },
+        {
+          "speaker": "pebble",
+          "key": "lv4_pre_1"
+        },
+        {
+          "speaker": "player",
+          "key": "lv4_pre_2"
+        },
+        {
+          "speaker": "pebble",
+          "key": "lv4_pre_3"
+        }
       ],
       "post": [
-        { "speaker": "pebble", "key": "lv4_post_0" },
-        { "speaker": "oldGrey", "key": "lv4_post_1" },
-        { "speaker": "player", "key": "lv4_post_2" }
+        {
+          "speaker": "pebble",
+          "key": "lv4_post_0"
+        },
+        {
+          "speaker": "oldGrey",
+          "key": "lv4_post_1"
+        },
+        {
+          "speaker": "player",
+          "key": "lv4_post_2"
+        }
       ]
     },
     "5": {
       "pre": [
-        { "speaker": "oldGrey", "key": "lv5_pre_0" },
-        { "speaker": "player", "key": "lv5_pre_1" },
-        { "speaker": "oldGrey", "key": "lv5_pre_2" },
-        { "speaker": "pebble", "key": "lv5_pre_3" }
+        {
+          "speaker": "oldGrey",
+          "key": "lv5_pre_0"
+        },
+        {
+          "speaker": "player",
+          "key": "lv5_pre_1"
+        },
+        {
+          "speaker": "oldGrey",
+          "key": "lv5_pre_2"
+        },
+        {
+          "speaker": "pebble",
+          "key": "lv5_pre_3"
+        }
       ],
       "post": [
-        { "speaker": "foxCub", "key": "lv5_post_0" },
-        { "speaker": "player", "key": "lv5_post_1" },
-        { "speaker": "oldGrey", "key": "lv5_post_2" },
-        { "speaker": "pebble", "key": "lv5_post_3" }
+        {
+          "speaker": "foxCub",
+          "key": "lv5_post_0"
+        },
+        {
+          "speaker": "player",
+          "key": "lv5_post_1"
+        },
+        {
+          "speaker": "oldGrey",
+          "key": "lv5_post_2"
+        },
+        {
+          "speaker": "pebble",
+          "key": "lv5_post_3"
+        }
       ]
     }
   },
@@ -191,5 +369,73 @@
     "bgCamp": "#c8e6c0",
     "bgForest": "#7a9e6a",
     "bgCreek": "#8ec8d8"
+  },
+  "CREATOR": {
+    "nameMax": 12,
+    "defaultName": "Kit",
+    "furs": [
+      "orange",
+      "grey",
+      "cream",
+      "black"
+    ],
+    "eyes": [
+      "amber",
+      "green",
+      "blue"
+    ],
+    "markings": [
+      "none",
+      "stripes",
+      "spots",
+      "blaze"
+    ],
+    "accessories": [
+      "none",
+      "collar",
+      "bandana",
+      "bell"
+    ],
+    "furColors": {
+      "orange": "#E8A040",
+      "grey": "#8B8B8B",
+      "cream": "#F5E6D3",
+      "black": "#2C2C2C"
+    },
+    "eyeColors": {
+      "amber": "#FFB84D",
+      "green": "#7FD87F",
+      "blue": "#6BA3D4"
+    },
+    "presets": {
+      "Sunny": {
+        "name": "Kit",
+        "fur": "orange",
+        "eyes": "amber",
+        "markings": "none",
+        "accessory": "none"
+      },
+      "Mystic": {
+        "name": "Mist",
+        "fur": "grey",
+        "eyes": "blue",
+        "markings": "stripes",
+        "accessory": "collar"
+      },
+      "Shadow": {
+        "name": "Shade",
+        "fur": "black",
+        "eyes": "green",
+        "markings": "spots",
+        "accessory": "bandana"
+      },
+      "CreamDream": {
+        "name": "Cream",
+        "fur": "cream",
+        "eyes": "amber",
+        "markings": "blaze",
+        "accessory": "bell"
+      }
+    }
   }
 }
